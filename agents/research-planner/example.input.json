@@ -1,0 +1,53 @@
+{
+  "campaign_id": "campaign-it-grand-tunis-001",
+  "campaign_name": "IT companies in Greater Tunis",
+  "countries": ["TN"],
+  "governorates": ["Tunis", "Ariana", "Ben Arous", "Manouba"],
+  "cities": [],
+  "sectors": ["software", "IT services"],
+  "keywords": ["cloud", "cybersecurity"],
+  "excluded_keywords": ["freelancer"],
+  "employee_range": {
+    "minimum": 10,
+    "maximum": null
+  },
+  "maximum_candidates": 200,
+  "enabled_sources": [
+    {
+      "source_id": "google_maps",
+      "source_type": "maps",
+      "capabilities": ["keyword", "sector", "location", "pagination"],
+      "supported_languages": ["fr", "en"]
+    },
+    {
+      "source_id": "b2b_tn",
+      "source_type": "directory",
+      "capabilities": ["sector", "location", "company_lookup", "pagination"],
+      "supported_languages": ["fr", "en"]
+    },
+    {
+      "source_id": "web_search",
+      "source_type": "web_search",
+      "capabilities": ["keyword", "sector", "location", "pagination"],
+      "supported_languages": ["fr", "en", "ar"]
+    },
+    {
+      "source_id": "rne_kyc",
+      "source_type": "registry",
+      "capabilities": ["company_lookup"],
+      "supported_languages": ["fr"]
+    }
+  ],
+  "official_validation": {
+    "enabled": true,
+    "source_id": "rne_kyc",
+    "mode": "WHEN_IDENTIFIER_AVAILABLE",
+    "failure_policy": "REVIEW",
+    "enrich": true
+  },
+  "language_preferences": ["fr", "en"],
+  "limits": {
+    "maximum_queries": 40,
+    "maximum_queries_per_source": 16
+  }
+}

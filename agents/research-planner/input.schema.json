@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orange.tn/dme/research-planner/input.schema.json",
+  "title": "Research Planner Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "campaign_id",
+    "countries",
+    "sectors",
+    "maximum_candidates",
+    "enabled_sources",
+    "official_validation",
+    "limits"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "campaign_name": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "countries": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z]{2}$"
+      }
+    },
+    "governorates": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      }
+    },
+    "cities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      }
+    },
+    "sectors": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 150
+      }
+    },
+    "keywords": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      }
+    },
+    "excluded_keywords": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      }
+    },
+    "employee_range": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["minimum", "maximum"],
+      "properties": {
+        "minimum": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "maximum": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        }
+      }
+    },
+    "maximum_candidates": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5000
+    },
+    "enabled_sources": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_id", "source_type", "capabilities"],
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "source_type": {
+            "enum": ["maps", "directory", "job_board", "web_search", "news", "registry"]
+          },
+          "capabilities": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": ["keyword", "sector", "location", "company_lookup", "pagination"]
+            }
+          },
+          "supported_languages": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": ["fr", "en", "ar"]
+            }
+          }
+        }
+      }
+    },
+    "official_validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "source_id", "mode", "failure_policy", "enrich"],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "source_id": {
+          "type": ["string", "null"],
+          "maxLength": 100
+        },
+        "mode": {
+          "enum": ["WHEN_IDENTIFIER_AVAILABLE", "REQUIRED_BEFORE_READY", "MANUAL_ONLY"]
+        },
+        "failure_policy": {
+          "enum": ["CONTINUE_PARTIAL", "REVIEW", "BLOCK_READINESS"]
+        },
+        "enrich": {
+          "type": "boolean"
+        }
+      }
+    },
+    "language_preferences": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["fr", "en", "ar"]
+      },
+      "default": ["fr", "en"]
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximum_queries", "maximum_queries_per_source"],
+      "properties": {
+        "maximum_queries": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "maximum_queries_per_source": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      }
+    }
+  }
+}

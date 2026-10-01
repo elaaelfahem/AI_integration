@@ -1,0 +1,16 @@
+services:
+  dme-assistant-gateway:
+    build: ../../services/dme-assistant-gateway
+    container_name: b2b-dme-assistant-gateway
+    restart: unless-stopped
+    environment:
+      FLOWISE_URL: http://docker-flowise-1:3000
+      DME_ASSISTANT_FLOW_ID: a9b2f1d4-5e36-47c8-9a10-2f3d4c5b6a70
+      FLOWISE_TIMEOUT_MS: 60000
+    ports:
+      - 127.0.0.1:8085:8084
+    networks:
+      - docker_default
+networks:
+  docker_default:
+    external: true

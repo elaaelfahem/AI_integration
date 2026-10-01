@@ -1,0 +1,13 @@
+services:
+  risk-detector-gateway:
+    build: ../../services/risk-detector-gateway
+    container_name: b2b-risk-detector-gateway
+    restart: unless-stopped
+    environment:
+      FLOWISE_URL: http://docker-flowise-1:3000
+      RISK_DETECTOR_FLOW_ID: c8d4f3a2-9e75-4ba6-b321-4d5e6f708192
+      FLOWISE_TIMEOUT_MS: 60000
+    ports: ["127.0.0.1:8087:8086"]
+    networks: [docker_default]
+networks:
+  docker_default: {external: true}

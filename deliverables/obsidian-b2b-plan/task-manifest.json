@@ -1,0 +1,1094 @@
+[
+  {
+    "id": "B2B-001",
+    "title": "Choose the main execution architecture",
+    "phase": "Foundation",
+    "state": "ready",
+    "owner": "You + technical lead",
+    "size": "1–2 h",
+    "deps": [],
+    "work": "Compare the newer Flowise all-in-one flow with the older n8n and gateway pipeline. Record one default for the MVP, the role of the alternative, and where future scheduling and storage will live.",
+    "test": "A short decision names the default execution path and lists the exact services needed to run a campaign, assistant, report and risk request.",
+    "refs": [
+      "flowise/all-in-one/README.md",
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": "The repository contains two implementations. Do not assume the older n8n architecture remains the chosen runtime."
+  },
+  {
+    "id": "B2B-002",
+    "title": "Record the current runtime and startup commands",
+    "phase": "Foundation",
+    "state": "ready",
+    "owner": "You",
+    "size": "1–2 h",
+    "deps": [],
+    "work": "Locate the installed Flowise runtime, model, ports, storage paths and startup commands. Record versions and non-secret configuration.",
+    "test": "A teammate can identify the required processes from one environment note. Record health results with a timestamp; distinguish model availability from application availability.",
+    "refs": [
+      "deployment/README.md",
+      "flowise/all-in-one/README.md"
+    ],
+    "note": "Baseline: Ollama responded; Flowise timed out after 3 seconds; n8n and gateway ports refused connections. These are observations, not proof of a permanent fault."
+  },
+  {
+    "id": "B2B-003",
+    "title": "Restore the selected local runtime",
+    "phase": "Foundation",
+    "state": "backlog",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-001",
+      "B2B-002"
+    ],
+    "work": "Start or repair only the services needed by the selected architecture and check Flowise-to-Ollama connectivity.",
+    "test": "Health endpoints respond and one AI-disabled risk request completes through the selected entry point. Save a redacted response and timing.",
+    "refs": [
+      "deployment/README.md",
+      "flowise/all-in-one/examples/risk.json"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-004",
+    "title": "Make the Flowise test harness portable",
+    "phase": "Foundation",
+    "state": "ready",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [],
+    "work": "Remove hard-coded runtime and /tmp export assumptions from the sandbox test. Accept explicit runtime/export paths and document prerequisites.",
+    "test": "The harness loads the committed export from the repository and either runs or fails with a precise missing-dependency message on a clean shell.",
+    "refs": [
+      "flowise/all-in-one/test-runtime.cjs"
+    ],
+    "note": "The currently hard-coded /usr/local/lib/node_modules/flowise runtime was not present during inspection. This harness was not run."
+  },
+  {
+    "id": "B2B-005",
+    "title": "Create a small reusable fixture pack",
+    "phase": "Foundation",
+    "state": "ready",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [],
+    "work": "Prepare synthetic Tunisian company fixtures: strong lead, thin profile, exact duplicate, ambiguous name, conflicting official ID, missing identifier, unavailable source, and unsupported extracted fact.",
+    "test": "Each fixture has an expected status and evidence references. Tests require no paid service or live personal data.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md",
+      "agents/fact-extractor/example.input.json"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-006",
+    "title": "Agree versioned application request and response contracts",
+    "phase": "Foundation",
+    "state": "ready",
+    "owner": "You + backend teammate",
+    "size": "2–4 h",
+    "deps": [],
+    "work": "Draft schemas for campaign, company, assistant, report, risk and typed errors; document ID fields, nulls, readiness flags and partial results. Review with the backend owner.",
+    "test": "Valid examples pass schema checks; missing company ID, wrong field types and unknown operations produce explicit errors. The selected runtime has an adapter to the same application contract.",
+    "refs": [
+      "agents/research-planner/input.schema.json",
+      "agents/fact-extractor/output.schema.json",
+      "flowise/all-in-one/README.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-007",
+    "title": "Verify campaign intake validation and limits",
+    "phase": "Campaigns",
+    "state": "testing",
+    "owner": "You",
+    "size": "2–3 h",
+    "deps": [
+      "B2B-003",
+      "B2B-006"
+    ],
+    "work": "Exercise the selected entry point with valid and invalid campaign criteria, oversized requests, excessive candidate counts and unknown sources.",
+    "test": "Valid input preserves the campaign ID. Invalid input fails before source calls. Configured query, candidate and enrichment limits are enforced.",
+    "refs": [
+      "scripts/build_flowise_all_in_one.py",
+      "n8n/dme_campaign_orchestrator.workflow.json"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-008",
+    "title": "Add asynchronous campaign job intake",
+    "phase": "Campaigns",
+    "state": "backlog",
+    "owner": "You + backend teammate",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-006",
+      "B2B-040"
+    ],
+    "work": "Create a persisted queued job and return its ID before source collection starts. Expose a status lookup through the agreed API.",
+    "test": "A deliberately slow collector does not delay the intake response until completion; polling shows persisted QUEUED, RUNNING and final states.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": "The all-in-one prototype is synchronous and does not currently provide durable business jobs."
+  },
+  {
+    "id": "B2B-009",
+    "title": "Verify multilingual research planning",
+    "phase": "Discovery",
+    "state": "testing",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-003",
+      "B2B-005"
+    ],
+    "work": "Check French, English and optional Arabic query generation, enabled-source filtering, duplicate removal and query caps.",
+    "test": "A software/Tunis fixture produces relevant bounded queries. Disabled sources and repeated queries are absent; invalid model JSON produces the documented error or fallback.",
+    "refs": [
+      "agents/research-planner/system-prompt.md",
+      "agents/query-composer/system-prompt.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-010",
+    "title": "Validate candidate relevance decisions",
+    "phase": "Discovery",
+    "state": "backlog",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-005",
+      "B2B-006"
+    ],
+    "work": "Evaluate or implement ACCEPT, REJECT and REVIEW decisions for Tunisian enterprises, people, foreign businesses and unrelated job advertisements.",
+    "test": "The fixture pack produces an explicit reason for every decision; unclear identity is REVIEW and a job advertisement without an identifiable employer is not accepted as a company.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-011",
+    "title": "Verify live B2B.tn discovery",
+    "phase": "Discovery",
+    "state": "testing",
+    "owner": "You",
+    "size": "2–3 h",
+    "deps": [
+      "B2B-003",
+      "B2B-009"
+    ],
+    "work": "Run one bounded B2B.tn sector/location query. Check filtering, raw record envelopes, response limits and unavailable-source behavior.",
+    "test": "Each returned candidate includes source URL, retrieval time and checksum. A simulated failure returns a typed partial/failure status rather than invented candidates.",
+    "refs": [
+      "deployment/discovery-connector/README.md",
+      "services/discovery-connector/server.mjs"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-012",
+    "title": "Implement a configured web search source",
+    "phase": "Discovery",
+    "state": "backlog",
+    "owner": "You",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-006",
+      "B2B-009"
+    ],
+    "work": "Define one provider adapter with source configuration, result limits and a disabled mode; implement against fixtures before enabling a provider.",
+    "test": "A configured fixture provider returns source envelopes. An unconfigured provider remains SKIPPED and never reports successful collection.",
+    "refs": [
+      "services/discovery-connector/server.mjs",
+      "flowise/all-in-one/README.md"
+    ],
+    "note": "Provider selection/access is a dependency for live testing. Do not enable billing as part of this planning task."
+  },
+  {
+    "id": "B2B-013",
+    "title": "Verify the optional Google Maps adapter",
+    "phase": "Discovery",
+    "state": "backlog",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-003",
+      "B2B-005"
+    ],
+    "work": "Test Maps request and response mapping using fixtures; document the separate live-access and paid-source opt-in prerequisites.",
+    "test": "No Maps call occurs without both configuration and explicit paid-source permission. A fixture response maps name, location and source identity correctly.",
+    "refs": [
+      "services/discovery-connector/server.mjs",
+      "flowise/all-in-one/README.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-014",
+    "title": "Meet the three-source-type discovery criterion",
+    "phase": "Discovery",
+    "state": "backlog",
+    "owner": "You + product lead",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-011",
+      "B2B-012",
+      "B2B-013"
+    ],
+    "work": "Confirm the MVP source set and run one controlled campaign using three configured source types. If a provider is unavailable, record the unmet criterion for team decision.",
+    "test": "Evidence records identify three distinct source types and per-source counts. Missing access remains visible; fixtures alone do not count as live source acceptance.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-015",
+    "title": "Verify provenance on collected records",
+    "phase": "Discovery",
+    "state": "testing",
+    "owner": "You",
+    "size": "2–3 h",
+    "deps": [
+      "B2B-005"
+    ],
+    "work": "Check source URL, timestamp, source record ID, raw checksum and collection status across all active adapters.",
+    "test": "Every accepted fact resolves to a source record; tampered or missing evidence is rejected or routed to review and raw evidence is not silently overwritten.",
+    "refs": [
+      "services/discovery-connector/server.mjs",
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-016",
+    "title": "Run existing candidate-normalization regression",
+    "phase": "Identity",
+    "state": "done",
+    "owner": "You",
+    "size": "Completed",
+    "deps": [],
+    "work": "Run the committed offline regression for strong duplicates, ambiguous same-name records and stable generated IDs.",
+    "test": "`node scripts/test_candidate_normalizer.js` exits 0: three raw candidates become two companies; two ambiguous companies remain separate and require review; IDs are deterministic.",
+    "refs": [
+      "scripts/test_candidate_normalizer.js"
+    ],
+    "note": "PASS on 2026-09-28. This verifies the cases in the existing n8n workflow test, not the whole live pipeline."
+  },
+  {
+    "id": "B2B-017",
+    "title": "Run existing RNE-policy regression",
+    "phase": "Identity",
+    "state": "done",
+    "owner": "You",
+    "size": "Completed",
+    "deps": [],
+    "work": "Run the committed offline regression for unavailable official lookups, missing identifiers and required-before-ready behavior.",
+    "test": "`node scripts/test_rne_validation.js` exits 0: REVIEW creates the expected review item and REQUIRED_BEFORE_READY blocks both unverified fixtures.",
+    "refs": [
+      "scripts/test_rne_validation.js"
+    ],
+    "note": "PASS on 2026-09-28. This is a policy test with synthetic responses, not a live official RNE validation."
+  },
+  {
+    "id": "B2B-018",
+    "title": "Run existing lead-scoring regression",
+    "phase": "Scoring and offers",
+    "state": "done",
+    "owner": "You",
+    "size": "Completed",
+    "deps": [],
+    "work": "Run the committed offline scoring test for strong/thin profiles, nested sector evidence, RNE conflicts and deterministic output.",
+    "test": "`node scripts/test_company_scoring.js` exits 0: category A/C and nested-sector cases pass; conflict becomes REVIEW and cannot receive offers; repeated output is identical.",
+    "refs": [
+      "scripts/test_company_scoring.js"
+    ],
+    "note": "PASS on 2026-09-28. Score weights still need business calibration."
+  },
+  {
+    "id": "B2B-019",
+    "title": "Run existing offer-recommendation regression",
+    "phase": "Scoring and offers",
+    "state": "done",
+    "owner": "You",
+    "size": "Completed",
+    "deps": [],
+    "work": "Run the committed offline offer test for evidence-based recommendations, eligibility gates and unknown commercial details.",
+    "test": "`node scripts/test_offer_recommender.js` exits 0: eligible evidence produces offers; blocked company receives none; commercial_details stays null.",
+    "refs": [
+      "scripts/test_offer_recommender.js"
+    ],
+    "note": "PASS on 2026-09-28. Product pricing and official commercial eligibility are not validated by this test."
+  },
+  {
+    "id": "B2B-020",
+    "title": "Cover conflicting IDs and placeholder contacts",
+    "phase": "Identity",
+    "state": "backlog",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-005",
+      "B2B-016"
+    ],
+    "work": "Add missing cases for same-phone/different-official-ID records and repeated directory URLs or placeholder contacts.",
+    "test": "Conflicting official IDs never merge automatically. Directory placeholders are excluded from canonical contact fields while original evidence is retained.",
+    "refs": [
+      "n8n/normalize_and_deduplicate_candidates.js",
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-021",
+    "title": "Persist ambiguous matches for human review",
+    "phase": "Identity",
+    "state": "backlog",
+    "owner": "You + backend teammate",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-020",
+      "B2B-040"
+    ],
+    "work": "Convert unresolved identity matches into durable review items with both candidates, evidence and a reason.",
+    "test": "The ambiguous 3S fixture creates one review item without merging; opening the item shows the competing records and evidence.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-022",
+    "title": "Verify website collection limits and unsafe URLs",
+    "phase": "Enrichment",
+    "state": "testing",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-003",
+      "B2B-005"
+    ],
+    "work": "Test allowed public pages, contact-page discovery, redirects, timeouts, page/size limits and private-network blocking.",
+    "test": "A public fixture site is collected within limits; localhost/private IP and redirect-to-private cases are blocked. A page failure preserves successful page evidence.",
+    "refs": [
+      "services/website-collector/server.mjs",
+      "flowise/all-in-one/test-runtime.cjs"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-023",
+    "title": "Verify evidence-grounded fact extraction",
+    "phase": "Enrichment",
+    "state": "testing",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-003",
+      "B2B-005",
+      "B2B-022"
+    ],
+    "work": "Exercise deterministic contacts and optional model extraction with missing fields, unsupported facts and quoted evidence.",
+    "test": "Accepted facts contain matching evidence; missing values stay null; an invented employee count is rejected; malformed output follows the documented fallback/error path.",
+    "refs": [
+      "agents/fact-extractor/system-prompt.md",
+      "services/fact-extraction-gateway/server.mjs"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-024",
+    "title": "Implement field precedence and visible conflicts",
+    "phase": "Enrichment",
+    "state": "backlog",
+    "owner": "You",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-005",
+      "B2B-023"
+    ],
+    "work": "Apply field-specific source authority and recency rules. Preserve official identity, operating locations, source descriptions and conflicting values separately.",
+    "test": "Recent company evidence may update a business contact but never silently overwrites a conflicting official identifier. The stale-profile fixture retains both sources.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-025",
+    "title": "Verify completeness and readiness indicators",
+    "phase": "Enrichment",
+    "state": "testing",
+    "owner": "You",
+    "size": "2–3 h",
+    "deps": [
+      "B2B-005",
+      "B2B-023",
+      "B2B-024"
+    ],
+    "work": "Check profile completeness, evidence quality and scoring/offer readiness against complete, thin, conflicting and partially enriched profiles.",
+    "test": "Indicators stay within documented bounds; partial source failures preserve valid facts; blocked official identity cannot become offer-ready.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md",
+      "n8n/aggregate_website_enrichment.js"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-026",
+    "title": "Obtain official RNE integration details",
+    "phase": "External dependencies",
+    "state": "blocked",
+    "owner": "Team / RNE access owner",
+    "size": "External wait",
+    "deps": [],
+    "work": "Obtain authorized API documentation, response examples, lookup identifiers, access arrangements and the required validation policy from the responsible team member.",
+    "test": "The team identifies an access owner and supplies documented request/response contracts. Credentials enter the approved secret store, never a task note.",
+    "refs": [
+      "docs/rne-validation-setup.md"
+    ],
+    "note": "Blocked on official provider documentation/access; availability has not been confirmed. Preparing this card does not send a request to anyone."
+  },
+  {
+    "id": "B2B-027",
+    "title": "Validate official RNE mapping and live lookup",
+    "phase": "Identity",
+    "state": "backlog",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-017",
+      "B2B-026",
+      "B2B-003"
+    ],
+    "work": "Map real provider fields and verify VERIFIED, NOT_FOUND, CONFLICT, UNAVAILABLE and missing-identifier behavior.",
+    "test": "An authorized known-company lookup preserves source evidence; a deliberate conflicting fixture blocks readiness; NOT_FOUND is not described as proof of illegitimacy.",
+    "refs": [
+      "services/rne-connector/server.mjs",
+      "docs/rne-validation-setup.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-028",
+    "title": "Obtain the official Orange product catalog",
+    "phase": "External dependencies",
+    "state": "blocked",
+    "owner": "Team / commercial owner",
+    "size": "External wait",
+    "deps": [],
+    "work": "Obtain versioned product names, features, eligibility, prices where applicable and an update owner.",
+    "test": "A dated catalog is available with a commercial owner and clear unknown fields. Until then, family recommendations continue to require commercial confirmation.",
+    "refs": [
+      "config/orange_offer_catalog.json",
+      "docs/offer-recommender.md"
+    ],
+    "note": "Blocked on official commercial material; the repository currently contains eight families and matching rules, not a full approved catalog."
+  },
+  {
+    "id": "B2B-029",
+    "title": "Import and validate the official catalog",
+    "phase": "Scoring and offers",
+    "state": "backlog",
+    "owner": "You + commercial owner",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-028",
+      "B2B-019"
+    ],
+    "work": "Define a versioned catalog import and map approved products/eligibility to recommendation outputs.",
+    "test": "Unknown product IDs are rejected; recommendations reference catalog versions; absent prices remain null and an expired or incomplete entry is not presented as a confirmed offer.",
+    "refs": [
+      "config/orange_offer_catalog.json",
+      "n8n/recommend_offers.js"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-030",
+    "title": "Add scoring boundary and missing-data cases",
+    "phase": "Scoring and offers",
+    "state": "backlog",
+    "owner": "You",
+    "size": "2–3 h",
+    "deps": [
+      "B2B-005",
+      "B2B-018"
+    ],
+    "work": "Cover 49/50 and 74/75 category boundaries, missing evidence, conflicting identity and component sum behavior.",
+    "test": "Scores remain between 0 and 100; categories match documented boundaries; REVIEW overrides a high score; repeated input remains deterministic.",
+    "refs": [
+      "docs/lead-scoring.md",
+      "n8n/score_companies.js"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-031",
+    "title": "Review scoring and offer relevance with sales",
+    "phase": "Scoring and offers",
+    "state": "backlog",
+    "owner": "You + DME representative",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-018",
+      "B2B-019",
+      "B2B-030"
+    ],
+    "work": "Prepare a small anonymized lead set with explanations and ask the sales team to label useful priorities and relevant offer families.",
+    "test": "Record disagreements, agreed weights/rules and an acceptance threshold before tuning. Keep measured quality separate from fixture test success.",
+    "refs": [
+      "docs/lead-scoring.md",
+      "docs/offer-recommender.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-032",
+    "title": "Verify the DME company assistant",
+    "phase": "Sales support",
+    "state": "testing",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-003",
+      "B2B-005"
+    ],
+    "work": "Test visit preparation, score explanation, missing data and RNE-conflict restrictions using one supplied company at a time.",
+    "test": "Answers reference only supplied company evidence and approved offers; review-blocked companies do not get a sale-ready next step; scores and records remain unchanged.",
+    "refs": [
+      "docs/dme-assistant.md",
+      "flowise/all-in-one/examples/assistant.json"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-033",
+    "title": "Verify visit-report cleaning and evidence",
+    "phase": "Sales support",
+    "state": "testing",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-003",
+      "B2B-005"
+    ],
+    "work": "Test French raw notes with needs, objections, commitments, explicit offers and follow-up actions; include vague or contradictory notes.",
+    "test": "Original report and checksum are preserved; every extracted item quotes original text; unmentioned products and invented commitments are absent.",
+    "refs": [
+      "docs/report-cleaner.md",
+      "flowise/all-in-one/examples/report.json"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-034",
+    "title": "Verify risk rules and credential redaction",
+    "phase": "Sales support",
+    "state": "testing",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-003",
+      "B2B-005"
+    ],
+    "work": "Test a clean event, RNE conflict, unsafe URL, rejected model output, prompt injection and synthetic credential exposure.",
+    "test": "Clean fixture is LOW/ALLOW; defined high-risk fixtures block and require review; synthetic secret values do not appear in returned risk output; AI cannot change rule results.",
+    "refs": [
+      "docs/risk-detector.md",
+      "flowise/all-in-one/examples/risk.json"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-035",
+    "title": "Verify AI output schemas and bounded repair",
+    "phase": "AI reliability",
+    "state": "testing",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-003",
+      "B2B-005"
+    ],
+    "work": "Exercise invalid JSON, extra fields, unsupported facts and one-repair limits for each language agent in the selected runtime.",
+    "test": "Bad output is never silently accepted. At most one repair is attempted where supported; failure returns a typed error or a documented deterministic fallback.",
+    "refs": [
+      "agents/fact-extractor/output.schema.json",
+      "agents/offer-recommender/output.schema.json",
+      "flowise/all-in-one/README.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-036",
+    "title": "Design and test model-outage recovery",
+    "phase": "AI reliability",
+    "state": "backlog",
+    "owner": "You",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-001",
+      "B2B-003"
+    ],
+    "work": "Reproduce an unavailable/slow Ollama node. Implement the chosen recovery behavior and surface whether deterministic output or manual retry was used.",
+    "test": "A model timeout produces a controlled result and a clear retry/fallback indication. The AI-disabled path remains usable and approved scores/offers are preserved.",
+    "refs": [
+      "flowise/all-in-one/README.md"
+    ],
+    "note": "Known gap: native Flowise LLM transport failures currently stop the node; the older gateway fallback does not automatically apply."
+  },
+  {
+    "id": "B2B-037",
+    "title": "Run adversarial extraction and prompt tests",
+    "phase": "AI reliability",
+    "state": "backlog",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-023",
+      "B2B-032",
+      "B2B-033",
+      "B2B-034",
+      "B2B-035"
+    ],
+    "work": "Use synthetic web-page instructions, hidden prompt text and adversarial visit notes to check trust boundaries across language tasks.",
+    "test": "Source text cannot change the task, expose configured secrets, authorize an offer or overwrite official status; unsupported outputs are rejected with evidence.",
+    "refs": [
+      "agents/fact-extractor/system-prompt.md",
+      "agents/dme-assistant/system-prompt.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-038",
+    "title": "Run one deterministic end-to-end campaign",
+    "phase": "Acceptance",
+    "state": "backlog",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-003",
+      "B2B-007",
+      "B2B-009",
+      "B2B-011",
+      "B2B-022",
+      "B2B-023",
+      "B2B-025",
+      "B2B-030",
+      "B2B-032",
+      "B2B-033",
+      "B2B-034"
+    ],
+    "work": "Run the chosen execution path with one bounded campaign and AI disabled, then use its company in assistant/report/risk requests.",
+    "test": "Save timestamped stage counts, score, offers and review flags; all eight campaign stages are accounted for. Partial or unavailable official validation is reported honestly.",
+    "refs": [
+      "scripts/test_full_system.mjs",
+      "scripts/test_flowise_all_in_one.py"
+    ],
+    "note": "Select the harness for the chosen architecture. Historical acceptance-results.json is not a fresh pass."
+  },
+  {
+    "id": "B2B-039",
+    "title": "Run the AI-enabled end-to-end acceptance path",
+    "phase": "Acceptance",
+    "state": "backlog",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-035",
+      "B2B-036",
+      "B2B-037",
+      "B2B-038"
+    ],
+    "work": "Repeat representative campaign, extraction and language tasks with the native model enabled and record accepted/fallback outputs and latency.",
+    "test": "Execution traces prove model nodes ran; AI cannot change official status, deterministic score or approved offer IDs; unavailable-model behavior matches the chosen recovery policy.",
+    "refs": [
+      "scripts/test_flowise_all_in_one.py",
+      "flowise/all-in-one/acceptance-results.json"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-040",
+    "title": "Agree the persistent business data model",
+    "phase": "Data and backend",
+    "state": "backlog",
+    "owner": "You + backend teammate",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-006"
+    ],
+    "work": "Define tables and keys for campaigns, jobs, companies, evidence, reviews, scores, offer snapshots and visit reports with versioned migrations.",
+    "test": "A schema review demonstrates one company linked to multiple evidence records, immutable report input and a durable job/review history.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": "Shared integration work. No application business database is supplied by the all-in-one prototype."
+  },
+  {
+    "id": "B2B-041",
+    "title": "Persist validated company and evidence outputs",
+    "phase": "Data and backend",
+    "state": "backlog",
+    "owner": "You + backend teammate",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-024",
+      "B2B-040"
+    ],
+    "work": "Add a validated write boundary with transactional upserts for company and source records and preserve conflict records.",
+    "test": "A valid fixture persists and reloads with evidence references intact; an invalid fact cannot enter canonical fields; failed writes roll back cleanly.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-042",
+    "title": "Verify replay and concurrent-write idempotency",
+    "phase": "Data and backend",
+    "state": "backlog",
+    "owner": "You + backend teammate",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-008",
+      "B2B-041"
+    ],
+    "work": "Replay a campaign/source payload and submit duplicate work concurrently using stable keys.",
+    "test": "Company/evidence row counts do not double; duplicate jobs have one effective outcome; distinct source evidence for the same company remains preserved.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-043",
+    "title": "Implement reviewed conflict resolution",
+    "phase": "Data and backend",
+    "state": "backlog",
+    "owner": "Backend teammate + you",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-021",
+      "B2B-041",
+      "B2B-044"
+    ],
+    "work": "Expose review list/detail and an explicit reviewer decision with reason, actor and timestamp; recalculate readiness only after validated resolution.",
+    "test": "An authorized reviewer can resolve a fixture conflict; unauthorized requests fail; audit history retains both the previous values and decision.",
+    "refs": [],
+    "note": ""
+  },
+  {
+    "id": "B2B-044",
+    "title": "Define and enforce application role access",
+    "phase": "Application integration",
+    "state": "backlog",
+    "owner": "Backend teammate + you",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-006",
+      "B2B-040"
+    ],
+    "work": "Confirm admin, DME and reviewer permissions with the team and enforce them at the API boundary, including access to reports and contact information.",
+    "test": "An access matrix is agreed; unauthenticated and unauthorized requests fail; an agent cannot retrieve another agent’s restricted records by changing an ID.",
+    "refs": [],
+    "note": "Proposed shared application scope and owners, to confirm with the team; this is not an assignment made on their behalf."
+  },
+  {
+    "id": "B2B-045",
+    "title": "Connect the admin campaign form and status view",
+    "phase": "Application integration",
+    "state": "backlog",
+    "owner": "Web teammate + you",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-008",
+      "B2B-044"
+    ],
+    "work": "Wire sector/location/source/limit controls to job intake and display persisted progress, partial results and errors.",
+    "test": "Submitting a valid campaign returns a job ID and status updates; invalid input is explained; refresh retains the job; duplicate clicks do not duplicate work.",
+    "refs": [],
+    "note": "Proposed shared UI task; implementation is not present in this repository."
+  },
+  {
+    "id": "B2B-046",
+    "title": "Build the company profile evidence view",
+    "phase": "Application integration",
+    "state": "backlog",
+    "owner": "Web teammate + you",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-041",
+      "B2B-044"
+    ],
+    "work": "Display company details, evidence links, score components, offer families, missing data and review restrictions from the validated API.",
+    "test": "A thin-profile fixture shows unknowns explicitly; a conflict remains visible; every displayed fact can open its evidence and unsafe HTML is not rendered.",
+    "refs": [],
+    "note": "Proposed shared UI task; confirm with the application team."
+  },
+  {
+    "id": "B2B-047",
+    "title": "Connect DME visit preparation to the assistant",
+    "phase": "Application integration",
+    "state": "backlog",
+    "owner": "Web/mobile teammate + you",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-032",
+      "B2B-044",
+      "B2B-046"
+    ],
+    "work": "Send a selected company and question to the assistant and show grounded advice, missing information and retry/fallback state.",
+    "test": "Switching company updates the request context; blocked companies show review restrictions; connection failure is actionable and does not show stale advice.",
+    "refs": [],
+    "note": "Proposed shared UI task; the target web/mobile surface needs team confirmation."
+  },
+  {
+    "id": "B2B-048",
+    "title": "Connect editable report review and saving",
+    "phase": "Application integration",
+    "state": "backlog",
+    "owner": "Web/mobile + backend teammates",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-033",
+      "B2B-041",
+      "B2B-044"
+    ],
+    "work": "Show original notes beside structured output, allow a user to review corrections and save the approved report with evidence and revision history.",
+    "test": "Raw notes survive unchanged; generated commitments are editable before saving; repeated save does not duplicate the visit report.",
+    "refs": [],
+    "note": "Proposed shared application slice; confirm report approval behavior with DME users."
+  },
+  {
+    "id": "B2B-049",
+    "title": "Build the human-review queue screen",
+    "phase": "Application integration",
+    "state": "backlog",
+    "owner": "Web teammate + you",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-043",
+      "B2B-044"
+    ],
+    "work": "Display unresolved identity/legal conflicts with evidence, action choices and a decision reason.",
+    "test": "A reviewer resolves a fixture item and sees the resulting readiness; a non-reviewer cannot resolve it; previous decisions remain visible.",
+    "refs": [],
+    "note": "Proposed shared UI task."
+  },
+  {
+    "id": "B2B-050",
+    "title": "Confirm and implement manual prospect assignment",
+    "phase": "Application integration",
+    "state": "backlog",
+    "owner": "Product + backend/web teammates",
+    "size": "Scope review + one small slice",
+    "deps": [
+      "B2B-044",
+      "B2B-046"
+    ],
+    "work": "Confirm whether manual assignment is part of this release; if accepted, implement one authorized assign/reassign action and history.",
+    "test": "Record an explicit scope decision. If included, authorized manual assignment changes the responsible agent with an audit entry; the AI never assigns automatically.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": "Tentative wider-platform feature. Split further after the team confirms its exact scope."
+  },
+  {
+    "id": "B2B-051",
+    "title": "Confirm visit tracking and follow-up scope",
+    "phase": "Application integration",
+    "state": "backlog",
+    "owner": "Product + web/mobile teammates",
+    "size": "Scope review + one small slice",
+    "deps": [
+      "B2B-048"
+    ],
+    "work": "Confirm visit statuses, dates and follow-up needs with DME users; choose one minimal visit lifecycle for the release.",
+    "test": "Record the agreed scope. If included, a user can create a visit, attach approved notes and set a follow-up date without automatically contacting the company.",
+    "refs": [],
+    "note": "Tentative wider-platform feature; split into implementation cards once the workflow is confirmed."
+  },
+  {
+    "id": "B2B-052",
+    "title": "Add correlated execution and audit logs",
+    "phase": "Operations",
+    "state": "backlog",
+    "owner": "You + backend teammate",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-006",
+      "B2B-008"
+    ],
+    "work": "Attach campaign/company/job IDs and workflow/prompt versions to stage events, with durations and typed failure categories.",
+    "test": "A fixture failure can be traced from intake to source/model/validation using one job ID; logs omit credential values and unnecessary report text.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-053",
+    "title": "Measure pipeline quality and latency",
+    "phase": "Operations",
+    "state": "backlog",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-038",
+      "B2B-052"
+    ],
+    "work": "Record per-source success, accepted/rejected/merged/review counts, completeness, invalid-AI rate and time per accepted company.",
+    "test": "A small fixed campaign produces a reproducible metric report with clear denominators; missing model token data is marked unavailable.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-054",
+    "title": "Set secret handling and trace retention rules",
+    "phase": "Operations",
+    "state": "backlog",
+    "owner": "You + backend/operations teammate",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-001",
+      "B2B-044",
+      "B2B-052"
+    ],
+    "work": "Check exports and synthetic execution traces for secret leakage; agree retention/access for source data, reports and Flowise traces.",
+    "test": "Synthetic secret values are absent from exports and application logs; retained traces have documented access and deletion behavior. Never paste real secrets in evidence.",
+    "refs": [
+      "flowise/all-in-one/README.md",
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-055",
+    "title": "Implement bounded retries and job cancellation",
+    "phase": "Operations",
+    "state": "backlog",
+    "owner": "You + backend teammate",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-008",
+      "B2B-041",
+      "B2B-052"
+    ],
+    "work": "Retry transient source failures with limits, retain successful source evidence, expose exhausted retries and honor cancellation at stage boundaries.",
+    "test": "Timeout then success retries only the failed source; a permanent error stops after its limit; cancelling prevents new stage work and leaves a persisted terminal status.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-056",
+    "title": "Add scheduled discovery after manual jobs work",
+    "phase": "Operations",
+    "state": "backlog",
+    "owner": "You + backend teammate",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-042",
+      "B2B-055"
+    ],
+    "work": "If recurring discovery is in the release scope, connect one scheduler to the same job intake and idempotency contract.",
+    "test": "Two overlapping triggers do not create duplicate effective work; disabling the schedule prevents new jobs while preserving history.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": "Planned product capability only. No actual recurring automation is created by this board."
+  },
+  {
+    "id": "B2B-057",
+    "title": "Package a reproducible staging deployment",
+    "phase": "Delivery",
+    "state": "backlog",
+    "owner": "You + operations teammate",
+    "size": "3–4 h",
+    "deps": [
+      "B2B-001",
+      "B2B-039",
+      "B2B-041",
+      "B2B-054"
+    ],
+    "work": "Document pinned runtime versions, non-secret configuration, model prerequisites, migration/startup steps and health probes for the selected architecture.",
+    "test": "A clean staging environment starts using the runbook and completes a deterministic smoke request; missing credentials are explicit and no real paid source is silently enabled.",
+    "refs": [
+      "deployment/README.md",
+      "flowise/all-in-one/README.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-058",
+    "title": "Verify backup restore and rollback",
+    "phase": "Delivery",
+    "state": "backlog",
+    "owner": "Backend/operations teammate + you",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-057"
+    ],
+    "work": "Back up business data and flow/config versions, then restore a fixture dataset in an isolated environment; document rollback steps.",
+    "test": "Restored company/evidence/report counts and links match; a previous flow version can be restored without overwriting newer unrelated data.",
+    "refs": [],
+    "note": ""
+  },
+  {
+    "id": "B2B-059",
+    "title": "Run a bounded DME pilot acceptance session",
+    "phase": "Delivery",
+    "state": "backlog",
+    "owner": "You + DME representative",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-014",
+      "B2B-027",
+      "B2B-029",
+      "B2B-031",
+      "B2B-039",
+      "B2B-045",
+      "B2B-046",
+      "B2B-047",
+      "B2B-048",
+      "B2B-049",
+      "B2B-057"
+    ],
+    "work": "Walk through campaign submission, lead review, visit preparation, report saving and conflict review on an agreed small dataset.",
+    "test": "Capture observed results against MVP criteria, user feedback and unresolved limitations. Any unmet source/access/catalog criterion stays open or gets an explicit scope decision.",
+    "refs": [
+      "docs/discovery-enrichment-system-spec.md"
+    ],
+    "note": ""
+  },
+  {
+    "id": "B2B-060",
+    "title": "Prepare the demonstration and handover guide",
+    "phase": "Delivery",
+    "state": "backlog",
+    "owner": "You",
+    "size": "2–4 h",
+    "deps": [
+      "B2B-058",
+      "B2B-059"
+    ],
+    "work": "Prepare the final architecture diagram, setup/run guide, demo script, endpoint examples, test evidence and known limitations.",
+    "test": "A teammate follows the guide to run the selected demo and locate test results without undocumented steps. Claims of completion match current evidence.",
+    "refs": [
+      "deliverables/DME_AI_Workflows_Meeting_v2.pptx",
+      "flowise/all-in-one/README.md"
+    ],
+    "note": ""
+  }
+]

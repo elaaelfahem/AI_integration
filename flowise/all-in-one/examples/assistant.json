@@ -1,0 +1,17 @@
+{
+  "operation": "assistant",
+  "company": {
+    "company_id": "demo-company",
+    "canonical_name": "Example SARL",
+    "scoring": {
+      "total_score": 60,
+      "category": "B",
+      "ready_for_offer_recommendation": true
+    },
+    "offer_recommendation": {
+      "recommendations": []
+    }
+  },
+  "user_question": "Prépare ma visite.",
+  "enable_ai": false
+}

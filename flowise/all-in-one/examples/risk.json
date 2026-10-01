@@ -1,0 +1,8 @@
+{
+  "operation": "risk",
+  "event_id": "demo-risk",
+  "payload": {
+    "rne_status": "CONFLICT"
+  },
+  "enable_ai": true
+}

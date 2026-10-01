@@ -1,0 +1,71 @@
+{
+  "checked_at": "2026-09-28T12:44:30.522078+00:00",
+  "offline_tests": {
+    "test_candidate_normalizer.js": {
+      "status": "PASS",
+      "exit_code": 0,
+      "output": "{\n  \"strong_match\": {\n    \"raw\": 3,\n    \"unique\": 2,\n    \"merged\": 1\n  },\n  \"ambiguous_match\": {\n    \"unique\": 2,\n    \"review_required\": 2\n  },\n  \"deterministic_ids\": true\n}\n",
+      "error": ""
+    },
+    "test_rne_validation.js": {
+      "status": "PASS",
+      "exit_code": 0,
+      "output": "{\n  \"review_policy\": {\n    \"status\": \"REVIEW_REQUIRED\",\n    \"counts\": {\n      \"not_requested\": 0,\n      \"skipped_no_identifier\": 1,\n      \"verified\": 0,\n      \"not_found\": 0,\n      \"conflict\": 0,\n      \"unavailable\": 1\n    },\n    \"reviews\": 1\n  },\n  \"required_policy\": {\n    \"blocked\": 2\n  }\n}\n",
+      "error": ""
+    },
+    "test_company_scoring.js": {
+      "status": "PASS",
+      "exit_code": 0,
+      "output": "{\n  \"status\": \"REVIEW_REQUIRED\",\n  \"categories\": {\n    \"a\": 1,\n    \"b\": 1,\n    \"c\": 1,\n    \"review\": 1\n  },\n  \"scores\": {\n    \"strong\": 100,\n    \"conflict\": 67,\n    \"nested-sector\": 54,\n    \"thin\": 20\n  }\n}\n",
+      "error": ""
+    },
+    "test_offer_recommender.js": {
+      "status": "PASS",
+      "exit_code": 0,
+      "output": "{\n  \"status\": \"COMPLETED\",\n  \"recommended\": [\n    {\n      \"offer_id\": \"broad_band\",\n      \"offer_name\": \"Broad Band\",\n      \"relevance_score\": 45,\n      \"reasons\": [\n        \"Evidence contains signal: software\",\n        \"Evidence contains signal: cloud\",\n        \"A digital presence indicates connectivity relevance\"\n      ],\n      \"commercial_details\": null,\n      \"needs_commercial_confirmation\": true\n    },\n    {\n      \"offer_id\": \"data\",\n      \"offer_name\": \"Data\",\n      \"relevance_score\": 30,\n      \"reasons\": [\n        \"Evidence contains signal: cloud\",\n        \"Evidence contains signal: software\"\n      ],\n      \"commercial_details\": null,\n      \"needs_commercial_confirmation\": true\n    },\n    {\n      \"offer_id\": \"office_365\",\n      \"offer_name\": \"Office 365\",\n      \"relevance_score\": 25,\n      \"reasons\": [\n        \"Evidence contains signal: software\",\n        \"Business email contact is available\"\n      ],\n      \"commercial_details\": null,\n      \"needs_commercial_confirmation\": true\n    }\n  ],\n  \"blocked\": \"NOT_ELIGIBLE\"\n}\n",
+      "error": ""
+    }
+  },
+  "health": {
+    "flowise": {
+      "status": "UNREACHABLE",
+      "error": "timed out"
+    },
+    "n8n": {
+      "status": "UNREACHABLE",
+      "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "ollama": {
+      "status": "RESPONDING",
+      "http": 200
+    },
+    "discovery": {
+      "status": "UNREACHABLE",
+      "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "rne": {
+      "status": "UNREACHABLE",
+      "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "website": {
+      "status": "UNREACHABLE",
+      "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "fact_extractor": {
+      "status": "UNREACHABLE",
+      "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "dme_assistant": {
+      "status": "UNREACHABLE",
+      "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "report_cleaner": {
+      "status": "UNREACHABLE",
+      "error": "<urlopen error [Errno 111] Connection refused>"
+    },
+    "risk_detector": {
+      "status": "UNREACHABLE",
+      "error": "<urlopen error [Errno 111] Connection refused>"
+    }
+  }
+}

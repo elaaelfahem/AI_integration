@@ -1,0 +1,154 @@
+{
+  "id": "fR7m2K9cN4pT8vL1",
+  "name": "DME Offer Recommender - Evidence Guarded",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "f8c5e2bb-d15d-4493-b126-2ee816678329",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{\"scoring\": {\"campaign_id\": \"campaign-offer-test\", \"companies\": [{\"company_id\": \"cmp-1\", \"canonical_name\": \"Cloud Software Tunisia\", \"description\": \"software cloud company\", \"website\": \"https://example.com\", \"emails\": [\"sales@example.com\"], \"scoring\": {\"category\": \"A\", \"total_score\": 82, \"ready_for_offer_recommendation\": true}}]}, \"offer_catalog\": {\"catalog_version\": \"orange-offer-families-1.0\", \"source\": \"CDC.docx section 1\", \"commercial_details_status\": \"REQUIRES_OFFICIAL_CATALOG\", \"offers\": [{\"offer_id\": \"mobile\", \"name\": \"Mobile\", \"signal_terms\": [\"mobile\", \"terrain\", \"field\", \"commercial\", \"sales\", \"fleet\", \"flotte\", \"livraison\", \"delivery\"]}, {\"offer_id\": \"broad_band\", \"name\": \"Broad Band\", \"signal_terms\": [\"internet\", \"software\", \"logiciel\", \"informatique\", \"digital\", \"cloud\", \"bureau\", \"office\"]}, {\"offer_id\": \"data\", \"name\": \"Data\", \"signal_terms\": [\"data\", \"donnée\", \"cloud\", \"hosting\", \"hébergement\", \"software\", \"logiciel\", \"informatique\"]}, {\"offer_id\": \"wifi\", \"name\": \"WiFi\", \"signal_terms\": [\"wifi\", \"hotel\", \"hôtel\", \"restaurant\", \"retail\", \"magasin\", \"campus\", \"public\", \"visiteur\"]}, {\"offer_id\": \"voip\", \"name\": \"VoIP\", \"signal_terms\": [\"voip\", \"call center\", \"centre d'appel\", \"support\", \"hotline\", \"multi-site\", \"multisite\"]}, {\"offer_id\": \"mssp\", \"name\": \"MSSP\", \"signal_terms\": [\"security\", \"sécurité\", \"cyber\", \"finance\", \"banque\", \"fintech\", \"cloud\", \"data\", \"donnée\"]}, {\"offer_id\": \"bulk_sms\", \"name\": \"Bulk SMS\", \"signal_terms\": [\"sms\", \"marketing\", \"retail\", \"magasin\", \"ecommerce\", \"e-commerce\", \"client\", \"notification\"]}, {\"offer_id\": \"office_365\", \"name\": \"Office 365\", \"signal_terms\": [\"office\", \"bureau\", \"collaboration\", \"email\", \"équipe\", \"team\", \"software\", \"logiciel\", \"informatique\"]}]}}}];"
+      },
+      "id": "f51adb7f-a120-499a-bae2-530fc24edab5",
+      "name": "Example Offer Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -450,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dme/recommend-offers",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "00f4ee87-5960-4f4b-a8ae-95ef9ca95aee",
+      "name": "Offer Recommender Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -700,
+        80
+      ],
+      "webhookId": "2e332edc-a5e3-4236-bfb3-297a76b05bdd"
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming=$input.first().json; let request=incoming.body??incoming; if(Array.isArray(request)&&request.length===1) request=request[0]; if(!request||typeof request!=='object'||Array.isArray(request)) throw new Error('Webhook body must contain one offer request'); return [{json:{...request,offer_catalog:{\"catalog_version\": \"orange-offer-families-1.0\", \"source\": \"CDC.docx section 1\", \"commercial_details_status\": \"REQUIRES_OFFICIAL_CATALOG\", \"offers\": [{\"offer_id\": \"mobile\", \"name\": \"Mobile\", \"signal_terms\": [\"mobile\", \"terrain\", \"field\", \"commercial\", \"sales\", \"fleet\", \"flotte\", \"livraison\", \"delivery\"]}, {\"offer_id\": \"broad_band\", \"name\": \"Broad Band\", \"signal_terms\": [\"internet\", \"software\", \"logiciel\", \"informatique\", \"digital\", \"cloud\", \"bureau\", \"office\"]}, {\"offer_id\": \"data\", \"name\": \"Data\", \"signal_terms\": [\"data\", \"donnée\", \"cloud\", \"hosting\", \"hébergement\", \"software\", \"logiciel\", \"informatique\"]}, {\"offer_id\": \"wifi\", \"name\": \"WiFi\", \"signal_terms\": [\"wifi\", \"hotel\", \"hôtel\", \"restaurant\", \"retail\", \"magasin\", \"campus\", \"public\", \"visiteur\"]}, {\"offer_id\": \"voip\", \"name\": \"VoIP\", \"signal_terms\": [\"voip\", \"call center\", \"centre d'appel\", \"support\", \"hotline\", \"multi-site\", \"multisite\"]}, {\"offer_id\": \"mssp\", \"name\": \"MSSP\", \"signal_terms\": [\"security\", \"sécurité\", \"cyber\", \"finance\", \"banque\", \"fintech\", \"cloud\", \"data\", \"donnée\"]}, {\"offer_id\": \"bulk_sms\", \"name\": \"Bulk SMS\", \"signal_terms\": [\"sms\", \"marketing\", \"retail\", \"magasin\", \"ecommerce\", \"e-commerce\", \"client\", \"notification\"]}, {\"offer_id\": \"office_365\", \"name\": \"Office 365\", \"signal_terms\": [\"office\", \"bureau\", \"collaboration\", \"email\", \"équipe\", \"team\", \"software\", \"logiciel\", \"informatique\"]}]}}}];"
+      },
+      "id": "7a6606a3-b02c-48fc-8ff0-9950ad6ac974",
+      "name": "Normalize Offer Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -450,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Run Once for All Items.\nconst request = $input.first().json;\nconst scoring = request.scoring ?? request;\nif (!Array.isArray(scoring.companies)) throw new Error('Offer request must contain scored companies');\nconst catalog = request.offer_catalog;\nif (!catalog || !Array.isArray(catalog.offers)) throw new Error('Offer catalog is required');\nconst lower = (value) => String(value ?? '').toLowerCase();\nconst unique = (values) => [...new Set(values.filter(Boolean))];\n\nfunction companyEvidence(company) {\n  const records = company.source_records ?? [];\n  return lower([\n    company.canonical_name, company.description, company.sector, company.industry, company.activity,\n    ...records.flatMap((record) => { const p = record.payload ?? {}; return [p.title, p.category, ...(p.categories ?? []), p.activity, p.description]; }),\n    ...(company.enriched_facts ?? []).map((fact) => `${fact.field} ${fact.value_text}`),\n  ].join(' '));\n}\n\nfunction recommend(company) {\n  const eligible = company.scoring?.ready_for_offer_recommendation === true;\n  if (!eligible) return {...company, offer_recommendation:{status:'NOT_ELIGIBLE',catalog_version:catalog.catalog_version,recommendations:[],warnings:['Company is not ready for offer recommendation']}};\n  const text = companyEvidence(company);\n  const employeeCount = Number(company.employee_count ?? company.employees ?? company.company_size);\n  const recommendations = catalog.offers.map((offer) => {\n    const matched = offer.signal_terms.filter((term) => text.includes(lower(term)));\n    let relevance = matched.length * 15;\n    const reasons = matched.slice(0, 4).map((term) => `Evidence contains signal: ${term}`);\n    if (offer.offer_id === 'broad_band' && company.website) { relevance += 15; reasons.push('A digital presence indicates connectivity relevance'); }\n    if (offer.offer_id === 'mobile' && Number.isFinite(employeeCount) && employeeCount >= 20) { relevance += 20; reasons.push('Company size may indicate multiple mobile users'); }\n    if (offer.offer_id === 'office_365' && (company.emails?.length ?? 0)) { relevance += 10; reasons.push('Business email contact is available'); }\n    if (offer.offer_id === 'voip' && (company.phones?.length ?? 0) > 1) { relevance += 10; reasons.push('Multiple phone contacts suggest voice-service relevance'); }\n    relevance = Math.min(100, relevance);\n    return {offer_id:offer.offer_id,offer_name:offer.name,relevance_score:relevance,reasons:unique(reasons),commercial_details:null,needs_commercial_confirmation:true};\n  }).filter((item) => item.relevance_score >= 15)\n    .sort((a,b) => b.relevance_score-a.relevance_score || a.offer_id.localeCompare(b.offer_id)).slice(0,3);\n  return {...company,offer_recommendation:{\n    status: recommendations.length ? 'RECOMMENDED' : 'REVIEW_REQUIRED',\n    catalog_version:catalog.catalog_version,\n    recommendations,\n    explanation: recommendations.length ? `Selected ${recommendations.length} offer families from verified company signals.` : 'No offer family has sufficient supporting evidence.',\n    explanation_source:'DETERMINISTIC',\n    warnings: recommendations.length ? ['Commercial features, eligibility and pricing require the official Orange catalog'] : ['Collect more company needs before proposing an offer'],\n  }};\n}\nconst companies = scoring.companies.map(recommend);\nconst recommended = companies.filter((c)=>c.offer_recommendation.status==='RECOMMENDED').length;\nconst review = companies.filter((c)=>c.offer_recommendation.status==='REVIEW_REQUIRED').length;\nreturn [{json:{contract_version:'1.0',campaign_id:scoring.campaign_id,status:review?'REVIEW_REQUIRED':'COMPLETED',catalog_version:catalog.catalog_version,company_count:companies.length,recommended_company_count:recommended,not_eligible_count:companies.filter((c)=>c.offer_recommendation.status==='NOT_ELIGIBLE').length,review_required_count:review,companies,warnings:unique(companies.flatMap((c)=>c.offer_recommendation.warnings))}}];\n"
+      },
+      "id": "4a857a7a-d988-4d4f-b586-41e935c8f54d",
+      "name": "Match Offer Families",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nconst result = $json;\nconst allowed = new Set(['mobile','broad_band','data','wifi','voip','mssp','bulk_sms','office_365']);\nif (!result.campaign_id || !Array.isArray(result.companies) || result.company_count !== result.companies.length) throw new Error('Invalid offer recommendation envelope');\nfor (const company of result.companies) {\n  const output = company.offer_recommendation;\n  if (!output || !['RECOMMENDED','NOT_ELIGIBLE','REVIEW_REQUIRED'].includes(output.status)) throw new Error(`Invalid offer status for ${company.company_id}`);\n  if (company.scoring?.ready_for_offer_recommendation !== true && output.recommendations.length) throw new Error(`Ineligible company ${company.company_id} received offers`);\n  for (const offer of output.recommendations) {\n    if (!allowed.has(offer.offer_id)) throw new Error(`Unknown offer ${offer.offer_id}`);\n    if (!Number.isInteger(offer.relevance_score) || offer.relevance_score < 0 || offer.relevance_score > 100) throw new Error(`Invalid relevance for ${offer.offer_id}`);\n    if (offer.commercial_details !== null || offer.needs_commercial_confirmation !== true) throw new Error(`Unverified commercial claim for ${offer.offer_id}`);\n  }\n}\nreturn {json:result};\n"
+      },
+      "id": "d62e7b67-a398-4074-a617-d08812b0197d",
+      "name": "Validate Offer Recommendations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Example Offer Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Example Offer Request": {
+      "main": [
+        [
+          {
+            "node": "Match Offer Families",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Offer Recommender Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Offer Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Offer Request": {
+      "main": [
+        [
+          {
+            "node": "Match Offer Families",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Offer Families": {
+      "main": [
+        [
+          {
+            "node": "Validate Offer Recommendations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "50f1e9fa-5717-4a33-8fd3-5d058ad49076",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

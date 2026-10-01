@@ -1,0 +1,28 @@
+services:
+  fact-extraction-gateway:
+    build:
+      context: ../../services/fact-extraction-gateway
+    container_name: b2b-fact-extraction-gateway
+    restart: unless-stopped
+    environment:
+      PORT: "8083"
+      FLOWISE_URL: "http://flowise:3000"
+      SEARXNG_URL: "http://searxng:8080"
+      FACT_EXTRACTOR_FLOW_ID: "7d3c481a-01ad-49ec-918b-1d7cfcb85a70"
+      FLOWISE_TIMEOUT_MS: "180000"
+    ports:
+      - "127.0.0.1:8083:8083"
+    networks:
+      - flowise_network
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  flowise_network:
+    external: true
+    name: docker_default

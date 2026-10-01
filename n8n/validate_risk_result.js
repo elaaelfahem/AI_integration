@@ -1,0 +1,1 @@
+const r=$json;if(!r.event_id||!Number.isInteger(r.risk_score)||!['LOW','MEDIUM','HIGH'].includes(r.risk_level)||!['ALLOW','REVIEW','BLOCK_AND_REVIEW'].includes(r.disposition)||!Array.isArray(r.detections))throw Error('Invalid risk result');if(r.risk_level==='HIGH'&&r.disposition!=='BLOCK_AND_REVIEW')throw Error('High risk was not blocked');return{json:r};

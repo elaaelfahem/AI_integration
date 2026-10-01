@@ -1,0 +1,16 @@
+{
+  "operation": "campaign",
+  "campaign_id": "demo-tunis",
+  "sectors": [
+    "software"
+  ],
+  "governorates": [
+    "Tunis"
+  ],
+  "enabled_sources": [
+    "b2b_tn"
+  ],
+  "maximum_candidates": 2,
+  "maximum_enrichment_companies": 2,
+  "enable_ai": false
+}

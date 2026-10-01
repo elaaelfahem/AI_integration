@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: b2b-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: b2b
+      POSTGRES_USER: b2b_app
+      POSTGRES_PASSWORD: local_b2b_registry_password
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    ports: ["127.0.0.1:5432:5432"]
+    networks: [docker_default]
+  company-registry:
+    build: ../../services/company-registry
+    container_name: b2b-company-registry
+    restart: unless-stopped
+    environment: {DATABASE_URL: postgresql://b2b_app:local_b2b_registry_password@postgres:5432/b2b}
+    ports: ["127.0.0.1:8090:8090"]
+    depends_on: [postgres]
+    networks: [docker_default]
+volumes: {postgres_data: {name: b2b_postgres_data}}
+networks: {docker_default: {external: true}}

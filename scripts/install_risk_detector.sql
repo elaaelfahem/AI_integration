@@ -1,0 +1,2 @@
+INSERT OR REPLACE INTO chat_flow (id,name,flowData,deployed,isPublic,apikeyid,chatbotConfig,createdDate,updatedDate,apiConfig,analytic,category,speechToText,type,workspaceId,followUpPrompts,textToSpeech)
+SELECT 'c8d4f3a2-9e75-4ba6-b321-4d5e6f708192','risk_detector',CAST(readfile('/tmp/risk_detector_agent.json') AS TEXT),0,0,apikeyid,chatbotConfig,datetime('now'),datetime('now'),apiConfig,analytic,category,speechToText,type,workspaceId,followUpPrompts,textToSpeech FROM chat_flow WHERE id='7d3c481a-01ad-49ec-918b-1d7cfcb85a70';

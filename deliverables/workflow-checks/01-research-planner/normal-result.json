@@ -1,0 +1,6 @@
+{
+  "tested_at": "2026-09-29T19:53:57.426236+00:00",
+  "http_status": 200,
+  "duration_seconds": 19.05,
+  "body": "{\"contract_version\":\"1.0\",\"campaign_id\":\"check-research-20260929T195338Z\",\"queries\":[{\"campaign_id\":\"check-research-20260929T195338Z\",\"query_id\":\"q-001\",\"source_id\":\"b2b_tn\",\"source_type\":\"directory\",\"language\":\"fr\",\"query\":\"Recherche de sociétés de logiciels à Tunis\",\"sector\":\"software\",\"location\":\"Tunis\",\"intent\":\"Recherche de sociétés de logiciels à Tunis\",\"priority\":1}],\"stop_conditions\":{\"maximum_queries\":1,\"maximum_candidates\":2},\"warnings\":[],\"query_count\":1}"
+}

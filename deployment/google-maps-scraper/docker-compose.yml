@@ -1,0 +1,21 @@
+services:
+  google-maps-scraper:
+    image: gosom/google-maps-scraper:latest
+    container_name: b2b-google-maps-scraper
+    restart: unless-stopped
+    command: ["-web", "-addr", ":8080", "-data-folder", "/data"]
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8082:8080"
+    networks:
+      - flowise_network
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  flowise_network:
+    external: true
+    name: docker_default

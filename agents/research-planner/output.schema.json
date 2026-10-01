@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orange.tn/dme/research-planner/output.schema.json",
+  "title": "Research Planner Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "campaign_id",
+    "queries",
+    "stop_conditions",
+    "warnings"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1.0"
+    },
+    "campaign_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "queries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "query_id",
+          "source_id",
+          "source_type",
+          "language",
+          "query",
+          "sector",
+          "location",
+          "intent",
+          "priority"
+        ],
+        "properties": {
+          "query_id": {
+            "type": "string",
+            "pattern": "^q-[0-9]{3}$"
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "source_type": {
+            "enum": ["maps", "directory", "job_board", "web_search", "news", "registry"]
+          },
+          "language": {
+            "enum": ["fr", "en", "ar"]
+          },
+          "query": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 300
+          },
+          "sector": {
+            "type": ["string", "null"],
+            "maxLength": 150
+          },
+          "location": {
+            "type": ["string", "null"],
+            "maxLength": 150
+          },
+          "intent": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 250
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          }
+        }
+      }
+    },
+    "stop_conditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximum_queries", "maximum_candidates"],
+      "properties": {
+        "maximum_queries": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "maximum_candidates": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5000
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      }
+    }
+  }
+}

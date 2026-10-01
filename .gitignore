@@ -1,0 +1,29 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local databases and generated scraper output
+*.sqlite
+*.sqlite-*
+*.db
+*.db-shm
+*.db-wal
+deployment/google-maps-scraper/data/
+deployment/company-registry/data/
+
+# Runtime and editor files
+node_modules/
+coverage/
+*.log
+.DS_Store
+.codex/
+.codex-finalizer/
+.presentation-build/
+.agents/
+
+# Python cache
+__pycache__/
+*.py[cod]

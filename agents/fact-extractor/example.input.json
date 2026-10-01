@@ -1,0 +1,14 @@
+{
+  "campaign_id": "campaign-enrichment-test-001",
+  "company_id": "cmp_example",
+  "canonical_name": "Example Technology",
+  "website": "https://example.test",
+  "document_checksum": "bundle-checksum-001",
+  "pages": [
+    {
+      "source_url": "https://example.test/about",
+      "title": "About Example Technology",
+      "text": "Example Technology develops cloud security software for Tunisian businesses. Contact: hello@example.test."
+    }
+  ]
+}

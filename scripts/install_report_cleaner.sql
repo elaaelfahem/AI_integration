@@ -1,0 +1,2 @@
+INSERT OR REPLACE INTO chat_flow (id,name,flowData,deployed,isPublic,apikeyid,chatbotConfig,createdDate,updatedDate,apiConfig,analytic,category,speechToText,type,workspaceId,followUpPrompts,textToSpeech)
+SELECT 'b7c3e2f1-8d64-4a95-a210-3c4d5e6f7081','report_cleaner',CAST(readfile('/tmp/report_cleaner_agent.json') AS TEXT),0,0,apikeyid,chatbotConfig,datetime('now'),datetime('now'),apiConfig,analytic,category,speechToText,type,workspaceId,followUpPrompts,textToSpeech FROM chat_flow WHERE id='7d3c481a-01ad-49ec-918b-1d7cfcb85a70';

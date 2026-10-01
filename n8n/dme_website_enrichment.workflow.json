@@ -1,0 +1,340 @@
+{
+  "id": "wE4b7N1mK9pQ2tC6",
+  "name": "DME Website and Contact Enrichment",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a93ae9f0-8490-4514-a24b-fd9294ecddf8",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1240,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\"official_validation\": {\"contract_version\": \"1.0\", \"campaign_id\": \"campaign-website-test-001\", \"status\": \"COMPLETED\", \"company_count\": 2, \"companies\": [{\"company_id\": \"cmp_example\", \"canonical_name\": \"Example Domain\", \"legal_identifier\": null, \"website\": \"https://example.com\", \"websites\": [\"https://example.com\"], \"domains\": [\"example.com\"], \"phones\": [], \"emails\": [], \"address\": null, \"source_ids\": [\"test\"], \"source_records\": [{\"source_record_id\": \"source-cmp_example\"}], \"review_required\": false, \"official_validation\": {\"provider\": \"RNE\", \"status\": \"SKIPPED_NO_IDENTIFIER\"}, \"ready_for_scoring\": true}, {\"company_id\": \"cmp_no_website\", \"canonical_name\": \"No Website Company\", \"legal_identifier\": null, \"website\": null, \"websites\": [], \"domains\": [], \"phones\": [], \"emails\": [], \"address\": null, \"source_ids\": [\"test\"], \"source_records\": [{\"source_record_id\": \"source-cmp_no_website\"}], \"review_required\": false, \"official_validation\": {\"provider\": \"RNE\", \"status\": \"SKIPPED_NO_IDENTIFIER\"}, \"ready_for_scoring\": true}], \"warnings\": []}, \"enable_semantic_extraction\": false, \"maximum_enrichment_companies\": 10} }];"
+      },
+      "id": "371bdad6-1f88-47c4-9e5a-e983a4c31d2e",
+      "name": "Example Enrichment Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1000,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dme/website-enrich",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "59236643-326b-4984-b548-e083da048aa4",
+      "name": "Website Enrichment Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1240,
+        80
+      ],
+      "webhookId": "db017f25-fbec-43e5-ac67-f2e7c842d722"
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $input.first().json;\nlet request = incoming.body ?? incoming;\nif (Array.isArray(request) && request.length === 1) request = request[0];\nif (!request || typeof request !== 'object' || Array.isArray(request)) {\n  throw new Error('Webhook body must contain one website-enrichment request');\n}\nreturn [{ json: request }];"
+      },
+      "id": "fbbcbf73-706d-4d99-ac3d-f5f83cfa3f38",
+      "name": "Normalize Enrichment Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1000,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Run Once for All Items.\nconst request = $input.first().json;\nconst source = request.official_validation ?? request;\nif (!source || typeof source !== 'object' || !Array.isArray(source.companies)) {\n  throw new Error('Website enrichment requires a company collection');\n}\nif (typeof source.campaign_id !== 'string' || !source.campaign_id) throw new Error('Website enrichment requires campaign_id');\nconst limit = Math.max(1, Math.min(Number(request.maximum_enrichment_companies ?? source.companies.length), 200));\nconst companies = source.companies.slice(0, limit);\nconst unprocessedCompanies = source.companies.slice(limit);\nif (!companies.length) throw new Error('Website enrichment received no companies');\n\nreturn companies.map((company, index) => ({\n  json: {\n    campaign_id: source.campaign_id,\n    company,\n    website: company.website,\n    enable_semantic_extraction: request.enable_semantic_extraction === true,\n    source_company_count: source.companies.length,\n    source_status: source.status,\n    source_warnings: source.warnings ?? [],\n    unprocessed_companies: index === 0 ? unprocessedCompanies : [],\n  },\n}));\n"
+      },
+      "id": "729f08e7-8bea-4ede-bdca-fba2d99df18c",
+      "name": "Prepare Website Enrichment Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nreturn {\n  json: {\n    campaign_id: $json.campaign_id,\n    company_id: $json.company.company_id,\n    canonical_name: $json.company.canonical_name,\n    website: $json.website,\n  },\n};\n"
+      },
+      "id": "e751ab66-fbea-4a7f-a549-c34807dcafcb",
+      "name": "Build Website Collector Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -440,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://website-collector:8082/v1/collect",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "393e0f5e-4be6-49ad-bc9c-bf5a289a0c22",
+      "name": "Call Website Collector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -160,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nconst expected = $('Build Website Collector Request').item.json;\nconst result = $json;\nconst statuses = new Set(['COLLECTED', 'SKIPPED_NO_WEBSITE', 'BLOCKED_UNSAFE_URL', 'UNAVAILABLE']);\nif (result.campaign_id !== expected.campaign_id || result.company_id !== expected.company_id) throw new Error('Website collector changed a controlled identifier');\nif (!statuses.has(result.status) || !Array.isArray(result.pages) || !Array.isArray(result.warnings)) throw new Error('Invalid website collection envelope');\nfor (const page of result.pages) {\n  for (const field of ['source_url', 'text', 'retrieved_at', 'checksum']) {\n    if (typeof page[field] !== 'string' || !page[field]) throw new Error(`Website page requires ${field}`);\n  }\n}\nreturn { json: result };\n"
+      },
+      "id": "46fc0c2b-07a6-4ae0-82a5-cde0ebd2e684",
+      "name": "Validate Website Collection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nconst task = $('Prepare Website Enrichment Tasks').item.json;\nreturn {\n  json: {\n    campaign_id: task.campaign_id,\n    company: task.company,\n    collection: $json,\n    enable_semantic_extraction: task.enable_semantic_extraction,\n  },\n};\n"
+      },
+      "id": "6d95b4e8-ed16-4e0d-a479-1a08edc5a666",
+      "name": "Build Fact Extraction Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fact-extraction-gateway:8083/v1/extract",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 210000
+        }
+      },
+      "id": "fc77c593-7575-40f9-889a-dfdc4f97ec7a",
+      "name": "Extract Evidence-backed Facts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nconst expected = $('Build Fact Extraction Request').item.json;\nconst result = $json;\nconst statuses = new Set([\n  'COMPLETED', 'COMPLETED_DETERMINISTIC', 'COMPLETED_FALLBACK',\n  'SKIPPED_NO_WEBSITE', 'BLOCKED_UNSAFE_URL', 'UNAVAILABLE',\n]);\nif (result.campaign_id !== expected.campaign_id || result.company_id !== expected.company.company_id) throw new Error('Fact extraction changed a controlled identifier');\nif (!statuses.has(result.status) || !Array.isArray(result.facts) || !Array.isArray(result.warnings)) throw new Error('Invalid fact-extraction envelope');\nfor (const fact of result.facts) {\n  if (typeof fact.field !== 'string' || typeof fact.value_text !== 'string' || typeof fact.source_url !== 'string') throw new Error('Invalid extracted fact');\n  if (fact.inferred !== false || Number(fact.extractor_confidence) < 0 || Number(fact.extractor_confidence) > 1) throw new Error('Invalid fact provenance or confidence');\n}\nreturn { json: result };\n"
+      },
+      "id": "1a9f5422-c3b7-4ea0-bd96-7eeb67ed6eab",
+      "name": "Validate Extracted Facts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Run Once for All Items.\nconst results = $input.all().map((item) => item.json);\nconst tasks = $('Prepare Website Enrichment Tasks').all().map((item) => item.json);\nif (results.length !== tasks.length) throw new Error('Extraction result count does not match website task count');\nconst resultByCompany = new Map(results.map((result) => [result.company_id, result]));\nconst unique = (values) => [...new Set(values.filter(Boolean))];\nconst acceptedFacts = results.flatMap((result) => result.facts ?? []);\nconst baselineCompleteness = (company) => {\n  const fields = [company.website, company.phones?.length, company.emails?.length, company.description, company.address, company.legal_identifier, company.social_profiles?.length];\n  return Number((fields.filter(Boolean).length / fields.length).toFixed(2));\n};\n\nfunction factsFor(result, field) {\n  return result.facts.filter((fact) => fact.field === field && Number(fact.extractor_confidence) >= 0.8).map((fact) => fact.value_text);\n}\n\nconst enrichedCompanies = tasks.map((task) => {\n  const result = resultByCompany.get(task.company.company_id);\n  if (!result) throw new Error(`Missing extraction result for ${task.company.company_id}`);\n  const legalIdentifier = task.company.legal_identifier\n    ?? result.facts.find((fact) => fact.field === 'legal_identifier' && Number(fact.extractor_confidence) >= 0.95)?.value_text\n    ?? null;\n  const emails = unique([...(task.company.emails ?? []), ...factsFor(result, 'email')]);\n  const phones = unique([...(task.company.phones ?? []), ...factsFor(result, 'phone')]);\n  const socialProfiles = unique([\n    ...(task.company.social_profiles ?? []),\n    ...factsFor(result, 'linkedin'), ...factsFor(result, 'facebook'), ...factsFor(result, 'other_social'),\n  ]);\n  const description = result.summary || task.company.description || null;\n  const completenessFields = [task.company.website, phones.length, emails.length, description, task.company.address, legalIdentifier, socialProfiles.length];\n  return {\n    ...task.company,\n    legal_identifier: legalIdentifier,\n    emails,\n    phones,\n    social_profiles: socialProfiles,\n    description,\n    enriched_facts: result.facts,\n    website_enrichment: {\n      status: result.status,\n      collection_status: result.collection_status,\n      document_checksum: result.document_checksum,\n      model_used: result.model_used,\n      flowise_flow_id: result.flowise_flow_id,\n      reputation_status: result.reputation_status ?? 'NOT_ATTEMPTED',\n      reputation_signals: result.reputation_signals ?? [],\n      warnings: result.warnings,\n    },\n    profile_completeness: Number((completenessFields.filter(Boolean).length / completenessFields.length).toFixed(2)),\n    needs_rne_retry: !task.company.legal_identifier && Boolean(legalIdentifier),\n  };\n});\nconst unprocessedCompanies = tasks.flatMap((task) => task.unprocessed_companies ?? []).map((company) => ({\n  ...company,\n  website_enrichment: {\n    status: 'NOT_ATTEMPTED_LIMIT',\n    collection_status: 'NOT_ATTEMPTED',\n    document_checksum: null,\n    model_used: false,\n    flowise_flow_id: null,\n    warnings: ['Website enrichment batch limit reached'],\n  },\n  profile_completeness: company.profile_completeness ?? baselineCompleteness(company),\n  needs_rne_retry: false,\n}));\nconst companies = [...enrichedCompanies, ...unprocessedCompanies];\n\nconst unavailable = results.filter((result) => ['UNAVAILABLE', 'BLOCKED_UNSAFE_URL'].includes(result.status)).length;\nconst fallback = results.filter((result) => result.status === 'COMPLETED_FALLBACK').length;\nreturn [{\n  json: {\n    contract_version: '1.0',\n    campaign_id: tasks[0].campaign_id,\n    status: unavailable || fallback || unprocessedCompanies.length ? 'PARTIAL' : 'COMPLETED',\n    company_count: companies.length,\n    source_company_count: tasks[0].source_company_count,\n    companies_enriched: results.filter((result) => result.status.startsWith('COMPLETED')).length,\n    websites_collected: results.filter((result) => result.collection_status === 'COLLECTED').length,\n    skipped_no_website: results.filter((result) => result.status === 'SKIPPED_NO_WEBSITE').length,\n    unavailable_or_blocked: unavailable,\n    not_attempted_limit: unprocessedCompanies.length,\n    flowise_extractions: results.filter((result) => result.model_used).length,\n    deterministic_extractions: results.filter((result) => !result.model_used && result.status.startsWith('COMPLETED')).length,\n    fallback_count: fallback,\n    facts_accepted: acceptedFacts.length,\n    legal_identifiers_discovered: companies.filter((company) => company.needs_rne_retry).length,\n    companies,\n    warnings: [...new Set([...(tasks[0].source_warnings ?? []), ...results.flatMap((result) => result.warnings ?? [])])],\n  },\n}];\n"
+      },
+      "id": "5a543fc7-3b9e-45ed-8e5d-f5390fca8827",
+      "name": "Aggregate Website Enrichment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nconst result = $json;\nif (result.contract_version !== '1.0' || typeof result.campaign_id !== 'string') throw new Error('Invalid website-enrichment contract');\nif (!['COMPLETED', 'PARTIAL'].includes(result.status) || !Array.isArray(result.companies) || !Array.isArray(result.warnings)) throw new Error('Invalid website-enrichment result');\nif (result.company_count !== result.companies.length) throw new Error('Website-enrichment company count is inconsistent');\nfor (const company of result.companies) {\n  if (!company.website_enrichment || typeof company.profile_completeness !== 'number') throw new Error('Company is missing website enrichment metadata');\n}\nreturn { json: result };\n"
+      },
+      "id": "44ad6c3a-4595-4091-841d-48c77d63c8f3",
+      "name": "Validate Enrichment Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -40
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Example Enrichment Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Example Enrichment Request": {
+      "main": [
+        [
+          {
+            "node": "Prepare Website Enrichment Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Website Enrichment Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Enrichment Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Enrichment Request": {
+      "main": [
+        [
+          {
+            "node": "Prepare Website Enrichment Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Website Enrichment Tasks": {
+      "main": [
+        [
+          {
+            "node": "Build Website Collector Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Website Collector Request": {
+      "main": [
+        [
+          {
+            "node": "Call Website Collector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Website Collector": {
+      "main": [
+        [
+          {
+            "node": "Validate Website Collection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Website Collection": {
+      "main": [
+        [
+          {
+            "node": "Build Fact Extraction Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Fact Extraction Request": {
+      "main": [
+        [
+          {
+            "node": "Extract Evidence-backed Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Evidence-backed Facts": {
+      "main": [
+        [
+          {
+            "node": "Validate Extracted Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Extracted Facts": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Website Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Website Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Validate Enrichment Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ca295c6a-2139-4fb6-85e6-f17af8c507b7",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

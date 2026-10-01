@@ -1,0 +1,27 @@
+services:
+  website-collector:
+    build:
+      context: ../../services/website-collector
+    container_name: b2b-website-collector
+    restart: unless-stopped
+    environment:
+      PORT: "8082"
+      MAX_PAGES: "5"
+      MAX_PAGE_BYTES: "1000000"
+      REQUEST_TIMEOUT_MS: "15000"
+    ports:
+      - "127.0.0.1:8084:8082"
+    networks:
+      - flowise_network
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  flowise_network:
+    external: true
+    name: docker_default

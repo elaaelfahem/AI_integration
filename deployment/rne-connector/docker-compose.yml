@@ -1,0 +1,29 @@
+services:
+  rne-connector:
+    build:
+      context: ../../services/rne-connector
+    container_name: b2b-rne-connector
+    restart: unless-stopped
+    environment:
+      PORT: "8081"
+      RNE_API_BASE_URL: "${RNE_API_BASE_URL:-}"
+      RNE_LOOKUP_PATH_TEMPLATE: "${RNE_LOOKUP_PATH_TEMPLATE:-/companies/{identifier}}"
+      RNE_AUTH_MODE: "${RNE_AUTH_MODE:-bearer}"
+      RNE_API_KEY_HEADER: "${RNE_API_KEY_HEADER:-x-api-key}"
+      RNE_API_KEY_FILE: "/run/secrets/rne_api_key"
+    ports:
+      - "127.0.0.1:8081:8081"
+    networks:
+      - flowise_network
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  flowise_network:
+    external: true
+    name: docker_default

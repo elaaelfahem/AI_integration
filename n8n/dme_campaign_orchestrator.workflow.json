@@ -1,0 +1,403 @@
+{
+  "id": "oR6c3H9mP2tV7kL4",
+  "name": "DME Campaign Orchestrator - Discovery and Enrichment",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/dme/recommend-offers",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { scoring: $json, enable_semantic_explanation: $('Normalize Campaign').item.json.enable_semantic_offer_explanation === true } }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "ed35a9cc-36fb-4996-a79c-5b1e20c7c973",
+      "name": "Call Offer Recommender",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1840,
+        -40
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "2a43252d-4279-4f19-84de-7f61083191ed",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1080,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\"campaign_id\": \"campaign-it-grand-tunis-001\", \"campaign_name\": \"IT companies in Greater Tunis\", \"countries\": [\"TN\"], \"governorates\": [\"Tunis\", \"Ariana\", \"Ben Arous\", \"Manouba\"], \"cities\": [], \"sectors\": [\"software\", \"IT services\"], \"keywords\": [\"cloud\", \"cybersecurity\"], \"excluded_keywords\": [\"freelancer\"], \"employee_range\": {\"minimum\": 10, \"maximum\": null}, \"maximum_candidates\": 200, \"enabled_sources\": [{\"source_id\": \"google_maps\", \"source_type\": \"maps\", \"capabilities\": [\"keyword\", \"sector\", \"location\", \"pagination\"], \"supported_languages\": [\"fr\", \"en\"]}, {\"source_id\": \"b2b_tn\", \"source_type\": \"directory\", \"capabilities\": [\"sector\", \"location\", \"company_lookup\", \"pagination\"], \"supported_languages\": [\"fr\", \"en\"]}, {\"source_id\": \"web_search\", \"source_type\": \"web_search\", \"capabilities\": [\"keyword\", \"sector\", \"location\", \"pagination\"], \"supported_languages\": [\"fr\", \"en\", \"ar\"]}, {\"source_id\": \"rne_kyc\", \"source_type\": \"registry\", \"capabilities\": [\"company_lookup\"], \"supported_languages\": [\"fr\"]}], \"official_validation\": {\"enabled\": true, \"source_id\": \"rne_kyc\", \"mode\": \"WHEN_IDENTIFIER_AVAILABLE\", \"failure_policy\": \"REVIEW\", \"enrich\": true}, \"language_preferences\": [\"fr\", \"en\"], \"limits\": {\"maximum_queries\": 40, \"maximum_queries_per_source\": 16}} }];"
+      },
+      "id": "6fb650e9-2ff5-4165-bdf6-e366cdd5e8bf",
+      "name": "Example Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -840,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dme/campaign-run",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "241f4c06-9952-4429-a6a2-f521f8a4b5e9",
+      "name": "Campaign Run Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1080,
+        80
+      ],
+      "webhookId": "526a57f2-ed5a-4cf7-ad07-e6165e270d16"
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $input.first().json;\nlet campaign = incoming.body ?? incoming;\nif (Array.isArray(campaign) && campaign.length === 1) campaign = campaign[0];\nif (!campaign || typeof campaign !== 'object' || Array.isArray(campaign)) {\n  throw new Error('Webhook body must contain one campaign JSON object');\n}\nreturn [{ json: campaign }];"
+      },
+      "id": "b1965527-45bf-4029-aac9-eaa825a63898",
+      "name": "Normalize Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -840,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/dme/research-plan",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "b5936dd8-f9ce-44c0-81c1-6d083c07dd84",
+      "name": "Call Research Planner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -560,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nlet plan = $json;\nif (Array.isArray(plan) && plan.length === 1) plan = plan[0];\n\nif (!plan || typeof plan !== 'object' || Array.isArray(plan)) {\n  throw new Error('Research Planner returned an invalid response envelope');\n}\nif (plan.contract_version !== '1.0' || typeof plan.campaign_id !== 'string') {\n  throw new Error('Research plan has an invalid contract or campaign ID');\n}\nif (!Array.isArray(plan.queries) || plan.queries.length === 0) {\n  throw new Error('Research plan contains no queries');\n}\nif (plan.query_count !== plan.queries.length) {\n  throw new Error('Research plan query_count does not match queries length');\n}\nif (!plan.stop_conditions || !Number.isInteger(plan.stop_conditions.maximum_candidates)) {\n  throw new Error('Research plan has invalid stop conditions');\n}\n\nreturn { json: plan };\n\n"
+      },
+      "id": "de5394c0-6a42-4f68-a74a-20b32f2be71b",
+      "name": "Validate Research Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/dme/discovery-execute",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "b0b2048e-8867-4c33-9569-cdca827ed809",
+      "name": "Call Discovery Executor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        40,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/dme/normalize-candidates",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "d0e39b4a-65e2-4a8b-97a2-23bb10a22ef1",
+      "name": "Call Candidate Normalizer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        340,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/dme/rne-validate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { normalization: $json, official_validation: $('Normalize Campaign').item.json.official_validation } }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "44752552-19f4-4a02-a3e9-b16998bd14fa",
+      "name": "Call RNE Validation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/dme/website-enrich",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { official_validation: $json, enable_semantic_extraction: $('Normalize Campaign').item.json.enable_semantic_extraction === true, maximum_enrichment_companies: $('Normalize Campaign').item.json.maximum_enrichment_companies || 10 } }}",
+        "options": {
+          "timeout": 900000
+        }
+      },
+      "id": "5c03e40f-d719-43a6-8585-eab6b1496813",
+      "name": "Call Website Enrichment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        940,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/dme/rne-validate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { normalization: $json, official_validation: $('Normalize Campaign').item.json.official_validation } }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "a1ab3230-02ca-4fd6-ba7c-4f0539ee91fd",
+      "name": "Retry RNE After Enrichment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/dme/score-companies",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { official_validation: $json, research_plan: $('Validate Research Plan').item.json, campaign: $('Normalize Campaign').item.json } }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "8af25be3-f94d-4f9d-850c-75a240f530e2",
+      "name": "Call Lead Scoring",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nfunction unwrap(value) {\n  return Array.isArray(value) && value.length === 1 ? value[0] : value;\n}\n\nconst offerRecommendations = unwrap($json);\nconst scoring = unwrap($('Call Lead Scoring').item.json);\nconst rneValidation = unwrap($('Retry RNE After Enrichment').item.json);\nconst websiteEnrichment = unwrap($('Call Website Enrichment').item.json);\nconst initialRneValidation = unwrap($('Call RNE Validation').item.json);\nconst normalization = unwrap($('Call Candidate Normalizer').item.json);\nconst discovery = unwrap($('Call Discovery Executor').item.json);\nconst plan = $('Validate Research Plan').item.json;\n\nif (!discovery || typeof discovery !== 'object' || Array.isArray(discovery)) {\n  throw new Error('Discovery Executor returned an invalid response envelope');\n}\nif (!normalization || typeof normalization !== 'object' || Array.isArray(normalization)) {\n  throw new Error('Candidate Normalizer returned an invalid response envelope');\n}\nif (!rneValidation || typeof rneValidation !== 'object' || Array.isArray(rneValidation)) {\n  throw new Error('RNE Validation returned an invalid response envelope');\n}\nif (!websiteEnrichment || typeof websiteEnrichment !== 'object' || Array.isArray(websiteEnrichment)) {\n  throw new Error('Website Enrichment returned an invalid response envelope');\n}\nif (!scoring || typeof scoring !== 'object' || Array.isArray(scoring)) {\n  throw new Error('Lead Scoring returned an invalid response envelope');\n}\nif (!offerRecommendations || typeof offerRecommendations !== 'object' || Array.isArray(offerRecommendations)) {\n  throw new Error('Offer Recommender returned an invalid response envelope');\n}\nif (discovery.campaign_id !== plan.campaign_id\n  || normalization.campaign_id !== plan.campaign_id\n  || initialRneValidation.campaign_id !== plan.campaign_id\n  || websiteEnrichment.campaign_id !== plan.campaign_id\n  || rneValidation.campaign_id !== plan.campaign_id\n  || scoring.campaign_id !== plan.campaign_id\n  || offerRecommendations.campaign_id !== plan.campaign_id) {\n  throw new Error('Campaign ID changed between pipeline stages');\n}\n\nlet pipelineStatus = rneValidation.status;\nif (discovery.status === 'SKIPPED') pipelineStatus = 'SKIPPED';\nelse if (discovery.status === 'PARTIAL') pipelineStatus = 'PARTIAL';\nelse if (normalization.status === 'REVIEW_REQUIRED') pipelineStatus = 'REVIEW_REQUIRED';\nelse if (websiteEnrichment.status === 'PARTIAL') pipelineStatus = 'PARTIAL';\nif (scoring.status === 'REVIEW_REQUIRED') pipelineStatus = 'REVIEW_REQUIRED';\nif (offerRecommendations.status === 'REVIEW_REQUIRED') pipelineStatus = 'REVIEW_REQUIRED';\n\nreturn {\n  json: {\n    contract_version: '1.0',\n    campaign_id: plan.campaign_id,\n    pipeline_status: pipelineStatus,\n    stages: {\n      research_planning: 'COMPLETED',\n      discovery: discovery.status,\n      normalization: normalization.status,\n      official_validation_initial: initialRneValidation.status,\n      website_enrichment: websiteEnrichment.status,\n      official_validation: rneValidation.status,\n      lead_scoring: scoring.status,\n      offer_recommendation: offerRecommendations.status,\n    },\n    research_plan: plan,\n    discovery,\n    normalization,\n    initial_official_validation: initialRneValidation,\n    website_enrichment: websiteEnrichment,\n    official_validation: rneValidation,\n    scoring,\n    offer_recommendations: offerRecommendations,\n  },\n};\n"
+      },
+      "id": "e1594eb6-5cca-4524-ac4d-ae44cbf85f46",
+      "name": "Build Campaign Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2140,
+        -40
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Example Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Example Campaign": {
+      "main": [
+        [
+          {
+            "node": "Normalize Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Campaign Run Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Campaign": {
+      "main": [
+        [
+          {
+            "node": "Call Research Planner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Research Planner": {
+      "main": [
+        [
+          {
+            "node": "Validate Research Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Research Plan": {
+      "main": [
+        [
+          {
+            "node": "Call Discovery Executor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Discovery Executor": {
+      "main": [
+        [
+          {
+            "node": "Call Candidate Normalizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Candidate Normalizer": {
+      "main": [
+        [
+          {
+            "node": "Call RNE Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call RNE Validation": {
+      "main": [
+        [
+          {
+            "node": "Call Website Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Website Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Retry RNE After Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry RNE After Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Call Lead Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Lead Scoring": {
+      "main": [
+        [
+          {
+            "node": "Call Offer Recommender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Offer Recommender": {
+      "main": [
+        [
+          {
+            "node": "Build Campaign Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e6b579c9-8d77-4f32-8916-c34a0a174c2d",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

@@ -1,0 +1,534 @@
+{
+  "tested_at": "2026-09-29T20:51:48.054728+00:00",
+  "kind": "live n8n webhook and Flowise calls",
+  "results": [
+    {
+      "name": "four_queries",
+      "input": {
+        "campaign_id": "planner-check-20260929T205110Z-four_queries",
+        "campaign_name": "IT companies in Greater Tunis",
+        "countries": [
+          "TN"
+        ],
+        "governorates": [
+          "Tunis",
+          "Ariana"
+        ],
+        "cities": [],
+        "sectors": [
+          "software",
+          "IT services"
+        ],
+        "keywords": [
+          "cloud",
+          "cybersecurity"
+        ],
+        "excluded_keywords": [
+          "freelancer"
+        ],
+        "employee_range": {
+          "minimum": 10,
+          "maximum": null
+        },
+        "maximum_candidates": 5,
+        "enabled_sources": [
+          {
+            "source_id": "google_maps",
+            "source_type": "maps",
+            "capabilities": [
+              "keyword",
+              "sector",
+              "location",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en"
+            ]
+          },
+          {
+            "source_id": "b2b_tn",
+            "source_type": "directory",
+            "capabilities": [
+              "sector",
+              "location",
+              "company_lookup",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en"
+            ]
+          },
+          {
+            "source_id": "web_search",
+            "source_type": "web_search",
+            "capabilities": [
+              "keyword",
+              "sector",
+              "location",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en",
+              "ar"
+            ]
+          },
+          {
+            "source_id": "rne_kyc",
+            "source_type": "registry",
+            "capabilities": [
+              "company_lookup"
+            ],
+            "supported_languages": [
+              "fr"
+            ]
+          }
+        ],
+        "official_validation": {
+          "enabled": true,
+          "source_id": "rne_kyc",
+          "mode": "WHEN_IDENTIFIER_AVAILABLE",
+          "failure_policy": "REVIEW",
+          "enrich": true
+        },
+        "language_preferences": [
+          "fr",
+          "en"
+        ],
+        "limits": {
+          "maximum_queries": 40,
+          "maximum_queries_per_source": 16
+        }
+      },
+      "http_status": 200,
+      "duration_seconds": 22.33,
+      "response": {
+        "contract_version": "1.0",
+        "campaign_id": "planner-check-20260929T205110Z-four_queries",
+        "queries": [
+          {
+            "campaign_id": "planner-check-20260929T205110Z-four_queries",
+            "query_id": "q-001",
+            "source_id": "google_maps",
+            "source_type": "maps",
+            "language": "fr",
+            "query": "sociétés de logiciels à Tunis",
+            "sector": "software",
+            "location": "Tunis",
+            "intent": "Découvrir des sociétés de logiciels à Tunis",
+            "priority": 1
+          },
+          {
+            "campaign_id": "planner-check-20260929T205110Z-four_queries",
+            "query_id": "q-002",
+            "source_id": "b2b_tn",
+            "source_type": "directory",
+            "language": "fr",
+            "query": "Recherche de sociétés de logiciels à Ariana",
+            "sector": "software",
+            "location": "Ariana",
+            "intent": "Recherche de sociétés de logiciels dans la région d'Ariana",
+            "priority": 1
+          },
+          {
+            "campaign_id": "planner-check-20260929T205110Z-four_queries",
+            "query_id": "q-003",
+            "source_id": "web_search",
+            "source_type": "web_search",
+            "language": "fr",
+            "query": "entreprises de services informatiques à Tunis Tunisie",
+            "sector": "IT services",
+            "location": "Tunis",
+            "intent": "Découvrir des sociétés de services informatiques à Tunis",
+            "priority": 1
+          },
+          {
+            "campaign_id": "planner-check-20260929T205110Z-four_queries",
+            "query_id": "q-004",
+            "source_id": "google_maps",
+            "source_type": "maps",
+            "language": "fr",
+            "query": "sociétés de services informatiques à Ariana",
+            "sector": "IT services",
+            "location": "Ariana",
+            "intent": "Découvrir des sociétés de services informatiques à Ariana",
+            "priority": 1
+          }
+        ],
+        "stop_conditions": {
+          "maximum_queries": 40,
+          "maximum_candidates": 5
+        },
+        "warnings": [
+          "Deterministic fallback used for q-001",
+          "Deterministic fallback used for q-003",
+          "Deterministic fallback used for q-004"
+        ],
+        "query_count": 4
+      },
+      "checks": {
+        "http_success": true,
+        "expected_query_count": true,
+        "campaign_id": true,
+        "candidate_limit": true,
+        "no_registry": true,
+        "requested_language": true,
+        "coverage": true
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "english_query",
+      "input": {
+        "campaign_id": "planner-check-20260929T205110Z-english_query",
+        "campaign_name": "IT companies in Greater Tunis",
+        "countries": [
+          "TN"
+        ],
+        "governorates": [
+          "Tunis"
+        ],
+        "cities": [],
+        "sectors": [
+          "software"
+        ],
+        "keywords": [
+          "cloud",
+          "cybersecurity"
+        ],
+        "excluded_keywords": [
+          "freelancer"
+        ],
+        "employee_range": {
+          "minimum": 10,
+          "maximum": null
+        },
+        "maximum_candidates": 5,
+        "enabled_sources": [
+          {
+            "source_id": "google_maps",
+            "source_type": "maps",
+            "capabilities": [
+              "keyword",
+              "sector",
+              "location",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en"
+            ]
+          },
+          {
+            "source_id": "b2b_tn",
+            "source_type": "directory",
+            "capabilities": [
+              "sector",
+              "location",
+              "company_lookup",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en"
+            ]
+          },
+          {
+            "source_id": "web_search",
+            "source_type": "web_search",
+            "capabilities": [
+              "keyword",
+              "sector",
+              "location",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en",
+              "ar"
+            ]
+          },
+          {
+            "source_id": "rne_kyc",
+            "source_type": "registry",
+            "capabilities": [
+              "company_lookup"
+            ],
+            "supported_languages": [
+              "fr"
+            ]
+          }
+        ],
+        "official_validation": {
+          "enabled": true,
+          "source_id": "rne_kyc",
+          "mode": "WHEN_IDENTIFIER_AVAILABLE",
+          "failure_policy": "REVIEW",
+          "enrich": true
+        },
+        "language_preferences": [
+          "en"
+        ],
+        "limits": {
+          "maximum_queries": 40,
+          "maximum_queries_per_source": 16
+        }
+      },
+      "http_status": 200,
+      "duration_seconds": 6.78,
+      "response": {
+        "contract_version": "1.0",
+        "campaign_id": "planner-check-20260929T205110Z-english_query",
+        "queries": [
+          {
+            "campaign_id": "planner-check-20260929T205110Z-english_query",
+            "query_id": "q-001",
+            "source_id": "google_maps",
+            "source_type": "maps",
+            "language": "en",
+            "query": "What companies in Tunis offer cloud and cybersecurity services?",
+            "sector": "software",
+            "location": "Tunis",
+            "intent": "Identify software companies in Tunis offering cloud and cybersecurity services.",
+            "priority": 1
+          }
+        ],
+        "stop_conditions": {
+          "maximum_queries": 40,
+          "maximum_candidates": 5
+        },
+        "warnings": [],
+        "query_count": 1
+      },
+      "checks": {
+        "http_success": true,
+        "expected_query_count": true,
+        "campaign_id": true,
+        "candidate_limit": true,
+        "no_registry": true,
+        "requested_language": true,
+        "coverage": true
+      },
+      "status": "PASS"
+    },
+    {
+      "name": "missing_sector",
+      "input": {
+        "campaign_id": "planner-check-20260929T205110Z-missing_sector",
+        "campaign_name": "IT companies in Greater Tunis",
+        "countries": [
+          "TN"
+        ],
+        "governorates": [
+          "Tunis",
+          "Ariana"
+        ],
+        "cities": [],
+        "sectors": [],
+        "keywords": [
+          "cloud",
+          "cybersecurity"
+        ],
+        "excluded_keywords": [
+          "freelancer"
+        ],
+        "employee_range": {
+          "minimum": 10,
+          "maximum": null
+        },
+        "maximum_candidates": 5,
+        "enabled_sources": [
+          {
+            "source_id": "google_maps",
+            "source_type": "maps",
+            "capabilities": [
+              "keyword",
+              "sector",
+              "location",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en"
+            ]
+          },
+          {
+            "source_id": "b2b_tn",
+            "source_type": "directory",
+            "capabilities": [
+              "sector",
+              "location",
+              "company_lookup",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en"
+            ]
+          },
+          {
+            "source_id": "web_search",
+            "source_type": "web_search",
+            "capabilities": [
+              "keyword",
+              "sector",
+              "location",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en",
+              "ar"
+            ]
+          },
+          {
+            "source_id": "rne_kyc",
+            "source_type": "registry",
+            "capabilities": [
+              "company_lookup"
+            ],
+            "supported_languages": [
+              "fr"
+            ]
+          }
+        ],
+        "official_validation": {
+          "enabled": true,
+          "source_id": "rne_kyc",
+          "mode": "WHEN_IDENTIFIER_AVAILABLE",
+          "failure_policy": "REVIEW",
+          "enrich": true
+        },
+        "language_preferences": [
+          "fr",
+          "en"
+        ],
+        "limits": {
+          "maximum_queries": 40,
+          "maximum_queries_per_source": 16
+        }
+      },
+      "http_status": 500,
+      "duration_seconds": 3.67,
+      "response": {
+        "message": "Error in workflow"
+      },
+      "checks": {
+        "invalid_request_rejected": true,
+        "useful_client_validation_error": false
+      },
+      "status": "FAIL"
+    },
+    {
+      "name": "arabic_with_compatible_web_source",
+      "input": {
+        "campaign_id": "planner-check-20260929T205110Z-arabic_with_compatible_web_source",
+        "campaign_name": "IT companies in Greater Tunis",
+        "countries": [
+          "TN"
+        ],
+        "governorates": [
+          "Tunis"
+        ],
+        "cities": [],
+        "sectors": [
+          "software"
+        ],
+        "keywords": [
+          "cloud",
+          "cybersecurity"
+        ],
+        "excluded_keywords": [
+          "freelancer"
+        ],
+        "employee_range": {
+          "minimum": 10,
+          "maximum": null
+        },
+        "maximum_candidates": 5,
+        "enabled_sources": [
+          {
+            "source_id": "google_maps",
+            "source_type": "maps",
+            "capabilities": [
+              "keyword",
+              "sector",
+              "location",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en"
+            ]
+          },
+          {
+            "source_id": "b2b_tn",
+            "source_type": "directory",
+            "capabilities": [
+              "sector",
+              "location",
+              "company_lookup",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en"
+            ]
+          },
+          {
+            "source_id": "web_search",
+            "source_type": "web_search",
+            "capabilities": [
+              "keyword",
+              "sector",
+              "location",
+              "pagination"
+            ],
+            "supported_languages": [
+              "fr",
+              "en",
+              "ar"
+            ]
+          },
+          {
+            "source_id": "rne_kyc",
+            "source_type": "registry",
+            "capabilities": [
+              "company_lookup"
+            ],
+            "supported_languages": [
+              "fr"
+            ]
+          }
+        ],
+        "official_validation": {
+          "enabled": true,
+          "source_id": "rne_kyc",
+          "mode": "WHEN_IDENTIFIER_AVAILABLE",
+          "failure_policy": "REVIEW",
+          "enrich": true
+        },
+        "language_preferences": [
+          "ar"
+        ],
+        "limits": {
+          "maximum_queries": 40,
+          "maximum_queries_per_source": 16
+        }
+      },
+      "http_status": 500,
+      "duration_seconds": 4.7,
+      "response": {
+        "code": 0,
+        "message": "No item to return was found"
+      },
+      "checks": {
+        "http_success": false,
+        "expected_query_count": false
+      },
+      "status": "FAIL"
+    }
+  ]
+}

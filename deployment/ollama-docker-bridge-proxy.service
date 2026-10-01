@@ -1,0 +1,16 @@
+[Unit]
+Description=Ollama proxy for the Flowise Docker bridge
+After=default.target
+
+[Service]
+Type=simple
+Environment=LISTEN_HOST=172.17.0.1
+Environment=LISTEN_PORT=11434
+# ADAPT THIS LINE: Replace with the absolute path to node and to this .mjs file on your machine.
+# Example: ExecStart=/home/YOUR_USER/.local/bin/node /path/to/your/project/deployment/ollama-docker-bridge-proxy.mjs
+ExecStart=/usr/bin/node /opt/dme-b2b/deployment/ollama-docker-bridge-proxy.mjs
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,16 @@
+{
+  "checks": {
+    "live_campaign_all_8_stages": "PASS",
+    "assistant": "PASS",
+    "blocked_sales_readiness": "PASS",
+    "report_evidence": "PASS",
+    "risk_conflict_injection_redaction": "PASS",
+    "unconfigured_source_is_partial": "PASS",
+    "native_ollama_and_guarded_result": "PASS"
+  },
+  "campaign_status": "COMPLETED",
+  "rne_status": "SKIPPED_NO_IDENTIFIER",
+  "website_status": "SKIPPED_NO_WEBSITE",
+  "ai_output_accepted": true,
+  "ai_warnings": []
+}

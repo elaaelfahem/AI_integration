@@ -1,0 +1,13 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "type":"object",
+  "required":["contract_version","campaign_id","company_id","catalog_version","recommendations"],
+  "properties":{
+    "contract_version":{"const":"1.0"},
+    "campaign_id":{"type":"string"},
+    "company_id":{"type":"string"},
+    "catalog_version":{"type":"string"},
+    "recommendations":{"type":"array","maxItems":3}
+  },
+  "additionalProperties":false
+}

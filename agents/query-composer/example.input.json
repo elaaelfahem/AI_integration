@@ -1,0 +1,11 @@
+{
+  "campaign_id": "campaign-it-grand-tunis-001",
+  "query_id": "q-001",
+  "source_id": "google_maps",
+  "source_type": "maps",
+  "language": "fr",
+  "sector": "software",
+  "location": "Tunis",
+  "keywords": ["cloud", "cybersecurity"],
+  "priority": 1
+}

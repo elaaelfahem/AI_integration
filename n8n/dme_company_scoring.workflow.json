@@ -1,0 +1,154 @@
+{
+  "id": "sC6r3N9mK2pT8vL4",
+  "name": "DME Lead Scoring - Deterministic and Explainable",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "8a90df3c-c2ca-4ea3-957d-f1b2ddaba101",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\"campaign\": {\"campaign_id\": \"campaign-score-test-001\", \"sectors\": [\"software\"], \"locations\": [\"Tunis\"]}, \"official_validation\": {\"campaign_id\": \"campaign-score-test-001\", \"companies\": [{\"company_id\": \"cmp-001\", \"canonical_name\": \"Example Software\", \"sector\": \"software\", \"address\": \"Tunis\", \"website\": \"https://example.com\", \"phones\": [\"+21670000000\"], \"emails\": [\"contact@example.com\"], \"legal_identifier\": \"1234567A\", \"source_ids\": [\"b2b_tn\", \"google_maps\"], \"source_records\": [{\"source_record_id\": \"src-001\"}], \"profile_completeness\": 0.85, \"ready_for_scoring\": true, \"official_validation\": {\"status\": \"VERIFIED\"}}]}} }];"
+      },
+      "id": "80789d5f-8380-4ed1-8051-a5ce1346634f",
+      "name": "Example Scoring Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dme/score-companies",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "f50625e8-161c-4923-9cd3-c3800a501258",
+      "name": "Company Scoring Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -700,
+        80
+      ],
+      "webhookId": "ad202447-1676-431e-b5f5-088f7f7c4bc0"
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $input.first().json;\nlet request = incoming.body ?? incoming;\nif (Array.isArray(request) && request.length === 1) request = request[0];\nif (!request || typeof request !== 'object' || Array.isArray(request)) throw new Error('Webhook body must contain one scoring request');\nreturn [{ json: request }];"
+      },
+      "id": "ba3cc8aa-674d-4d60-a802-40cf1376d7a8",
+      "name": "Normalize Scoring Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Run Once for All Items.\nconst incoming = $input.first().json;\nconst request = Array.isArray(incoming) && incoming.length === 1 ? incoming[0] : incoming;\nconst validation = request.official_validation ?? request;\nconst companies = validation.companies ?? request.companies;\nif (!Array.isArray(companies)) throw new Error('Scoring request must contain a companies array');\n\nconst campaign = request.campaign ?? {};\nconst plan = request.research_plan ?? {};\nconst lower = (value) => String(value ?? '').trim().toLowerCase();\nconst unique = (values) => [...new Set(values.filter(Boolean))];\nconst hasAny = (text, terms) => terms.some((term) => text.includes(term));\nconst clamp = (value, min, max) => Math.max(min, Math.min(max, value));\nconst targetSectors = unique([\n  ...(campaign.sectors ?? []),\n  ...(campaign.target_sectors ?? []),\n  ...(plan.queries ?? []).map((query) => query.sector),\n].map(lower));\nconst targetLocations = unique([\n  ...(campaign.locations ?? []),\n  ...(campaign.target_locations ?? []),\n  ...(plan.queries ?? []).map((query) => query.location),\n].map(lower));\nconst sectorAliases = {\n  software: ['software', 'logiciel', 'programmation informatique', 'développement informatique'],\n  'it services': ['it services', 'services informatiques', 'service informatique', 'informatique'],\n  cybersecurity: ['cybersecurity', 'cybersécurité', 'sécurité informatique'],\n  cloud: ['cloud', 'infonuagique', 'hébergement'],\n  finance: ['finance', 'financier', 'banque', 'fintech'],\n};\nconst targetSectorTerms = unique(targetSectors.flatMap((sector) => sectorAliases[sector] ?? [sector]));\n\nfunction scoreCompany(company) {\n  const reasons = [];\n  const missing = [];\n  const evidenceRefs = [];\n  const sourceRecords = company.source_records ?? [];\n  const sourceIds = unique(company.source_ids ?? sourceRecords.map((record) => record.source_id));\n  const facts = company.enriched_facts ?? [];\n  const sourceEvidenceText = sourceRecords.map((record) => {\n    const payload = record.payload ?? {};\n    return [payload.title, payload.category, ...(payload.categories ?? []), payload.activity, payload.description].join(' ');\n  }).join(' ');\n  const text = lower([\n    company.canonical_name, company.description, company.sector, company.industry,\n    company.activity, company.address, company.location,\n    sourceEvidenceText,\n    ...facts.map((fact) => `${fact.field} ${fact.value_text}`),\n  ].join(' '));\n  const locationText = lower([company.address, company.location, company.governorate].join(' '));\n\n  let fit = 8;\n  const sectorMatch = targetSectorTerms.some((sector) => sector && text.includes(sector));\n  const locationMatch = targetLocations.some((location) => location && locationText.includes(location));\n  if (sectorMatch) { fit += 12; reasons.push('Matches a campaign target sector'); }\n  else missing.push('confirmed_target_sector');\n  if (locationMatch) { fit += 6; reasons.push('Matches a campaign target location'); }\n  else if (targetLocations.length) missing.push('confirmed_target_location');\n  const employeeCount = Number(company.employee_count ?? company.employees ?? company.company_size);\n  if (Number.isFinite(employeeCount) && employeeCount >= 50) { fit += 4; reasons.push('Company size indicates enterprise potential'); }\n  else if (!Number.isFinite(employeeCount)) missing.push('employee_count');\n  fit = clamp(fit, 0, 30);\n\n  let opportunity = 5;\n  if (hasAny(text, ['software', 'logiciel', 'informatique', 'technology', 'technologie', 'cloud', 'digital', 'finance', 'banque'])) {\n    opportunity += 8; reasons.push('Activity suggests demand for business connectivity or digital services');\n  }\n  if (hasAny(text, ['recrut', 'hiring', 'expansion', 'croissance', 'nouveau', 'startup'])) {\n    opportunity += 5; reasons.push('Growth signal detected');\n  }\n  if (employeeCount >= 50) opportunity += 5;\n  else if (employeeCount >= 10) opportunity += 3;\n  if (company.website) opportunity += 2;\n  else { opportunity += 1; missing.push('website'); }\n  opportunity = clamp(opportunity, 0, 25);\n\n  const phones = unique(company.phones ?? (company.phone ? [company.phone] : []));\n  const emails = unique(company.emails ?? (company.email ? [company.email] : []));\n  const socials = unique(company.social_profiles ?? []);\n  let reachability = 0;\n  if (phones.length) { reachability += 8; reasons.push('Phone contact is available'); } else missing.push('phone');\n  if (emails.length) { reachability += 7; reasons.push('Email contact is available'); } else missing.push('email');\n  if (company.website) reachability += 3;\n  if (socials.length) reachability += 2;\n  reachability = clamp(reachability, 0, 20);\n\n  const official = company.official_validation ?? {};\n  let trust = 2;\n  if (official.status === 'VERIFIED') { trust = 15; reasons.push('Official registry validation succeeded'); }\n  else if (official.status === 'CONFLICT') { trust = 0; reasons.push('Official registry data conflicts with collected data'); }\n  else if (company.legal_identifier) { trust = 8; reasons.push('A legal identifier is available but not verified'); }\n  else if (official.status === 'SKIPPED_NO_IDENTIFIER') missing.push('legal_identifier');\n  if (company.review_required) trust = Math.min(trust, 5);\n\n  let evidenceQuality = 0;\n  if (sourceRecords.length) { evidenceQuality += 3; evidenceRefs.push(...sourceRecords.map((record) => record.source_record_id).filter(Boolean)); }\n  if (sourceIds.length >= 2) { evidenceQuality += 3; reasons.push('Confirmed by multiple discovery sources'); }\n  else if (sourceIds.length === 1) evidenceQuality += 1;\n  if (facts.length) {\n    evidenceQuality += 2;\n    evidenceRefs.push(...facts.map((fact) => fact.evidence_ref ?? fact.source_url).filter(Boolean));\n  }\n  const completeness = Number(company.profile_completeness);\n  if (Number.isFinite(completeness)) evidenceQuality += completeness >= 0.7 ? 2 : completeness >= 0.4 ? 1 : 0;\n  evidenceQuality = clamp(evidenceQuality, 0, 10);\n\n  const total = fit + opportunity + reachability + trust + evidenceQuality;\n  const blocked = company.ready_for_scoring === false || official.status === 'CONFLICT';\n  const category = blocked ? 'REVIEW' : total >= 75 ? 'A' : total >= 50 ? 'B' : 'C';\n  const confidence = clamp(Number(((evidenceQuality / 10) * 0.6 + (Number.isFinite(completeness) ? completeness : 0.25) * 0.4).toFixed(2)), 0, 1);\n  if (!reasons.length) reasons.push('Insufficient positive evidence; manual enrichment recommended');\n\n  return {\n    ...company,\n    scoring: {\n      score_version: 'lead-score-1.0',\n      total_score: total,\n      category,\n      confidence,\n      components: { campaign_fit: fit, telecom_opportunity: opportunity, reachability, official_trust: trust, evidence_quality: evidenceQuality },\n      reasons: unique(reasons).slice(0, 8),\n      missing_data: unique(missing),\n      evidence_refs: unique(evidenceRefs),\n      ready_for_offer_recommendation: !blocked && total >= 50,\n      explanation_source: 'DETERMINISTIC',\n    },\n  };\n}\n\nconst scored = companies.map(scoreCompany).sort((a, b) => b.scoring.total_score - a.scoring.total_score || String(a.company_id).localeCompare(String(b.company_id)));\nconst categories = Object.fromEntries(['A', 'B', 'C', 'REVIEW'].map((category) => [category.toLowerCase(), scored.filter((company) => company.scoring.category === category).length]));\nreturn [{ json: {\n  contract_version: '1.0',\n  campaign_id: validation.campaign_id ?? request.campaign_id ?? campaign.campaign_id,\n  status: categories.review ? 'REVIEW_REQUIRED' : 'COMPLETED',\n  score_version: 'lead-score-1.0',\n  company_count: scored.length,\n  categories,\n  ready_for_offer_recommendation_count: scored.filter((company) => company.scoring.ready_for_offer_recommendation).length,\n  companies: scored,\n  warnings: validation.warnings ?? [],\n} }];\n"
+      },
+      "id": "efc41aef-dd2b-4121-a4e2-f4a2ec4920bb",
+      "name": "Score Companies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nconst result = Array.isArray($json) && $json.length === 1 ? $json[0] : $json;\nif (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error('Invalid scoring response envelope');\nif (!result.campaign_id) throw new Error('Scoring response is missing campaign_id');\nif (!Array.isArray(result.companies)) throw new Error('Scoring response is missing companies');\nif (result.company_count !== result.companies.length) throw new Error('Scoring company_count mismatch');\nfor (const company of result.companies) {\n  const score = company.scoring;\n  if (!score || score.score_version !== 'lead-score-1.0') throw new Error(`Missing scoring contract for ${company.company_id}`);\n  if (!Number.isInteger(score.total_score) || score.total_score < 0 || score.total_score > 100) throw new Error(`Invalid score for ${company.company_id}`);\n  const sum = Object.values(score.components ?? {}).reduce((total, value) => total + value, 0);\n  if (sum !== score.total_score) throw new Error(`Score component mismatch for ${company.company_id}`);\n  if (!['A', 'B', 'C', 'REVIEW'].includes(score.category)) throw new Error(`Invalid category for ${company.company_id}`);\n  if ((company.ready_for_scoring === false || company.official_validation?.status === 'CONFLICT') && score.category !== 'REVIEW') {\n    throw new Error(`Blocked company ${company.company_id} escaped REVIEW`);\n  }\n}\nreturn { json: result };\n"
+      },
+      "id": "435811f9-c1bb-4107-999c-5ab69b25bfd0",
+      "name": "Validate Scoring Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        140,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Example Scoring Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Example Scoring Request": {
+      "main": [
+        [
+          {
+            "node": "Score Companies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Company Scoring Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Scoring Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Scoring Request": {
+      "main": [
+        [
+          {
+            "node": "Score Companies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Companies": {
+      "main": [
+        [
+          {
+            "node": "Validate Scoring Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5fb23d91-726b-484f-9d1c-0af56e3ddb9e",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

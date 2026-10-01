@@ -1,0 +1,209 @@
+{
+  "id": "dE7q9C2mL5xN8pR1",
+  "name": "DME Discovery Executor - Source Connectors",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "cd8b50b9-a501-465c-b380-dda6b5f5ff9d",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -980,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\"contract_version\": \"1.0\", \"campaign_id\": \"campaign-it-grand-tunis-001\", \"queries\": [{\"query_id\": \"q-002\", \"source_id\": \"b2b_tn\", \"source_type\": \"directory\", \"language\": \"fr\", \"query\": \"sociétés de services informatiques à Tunis\", \"sector\": \"IT services\", \"location\": \"Tunis\", \"intent\": \"Découvrir des sociétés de services informatiques à Tunis\", \"priority\": 1}], \"stop_conditions\": {\"maximum_queries\": 40, \"maximum_candidates\": 20}, \"warnings\": [], \"query_count\": 1} }];"
+      },
+      "id": "0812f13c-f456-471d-b29a-2cc621669171",
+      "name": "Example B2B Research Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dme/discovery-execute",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "c37549bd-af14-418b-aaf8-3ca80e1e21e2",
+      "name": "Research Plan Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -980,
+        80
+      ],
+      "webhookId": "b7072d56-76a9-4de0-bb09-b877af622b0b"
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $input.first().json;\nlet plan = incoming.body ?? incoming;\nif (Array.isArray(plan) && plan.length === 1) plan = plan[0];\nif (!plan || typeof plan !== 'object' || Array.isArray(plan)) {\n  throw new Error('Webhook body must contain one research-plan JSON object');\n}\nreturn [{ json: plan }];"
+      },
+      "id": "bb3eddfa-9d7a-4bf1-a247-adb11fbd8a6e",
+      "name": "Normalize Research Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Run Once for All Items.\nconst plan = $input.first().json;\nif (!plan.campaign_id || !Array.isArray(plan.queries) || plan.queries.length === 0) {\n  throw new Error('Research plan requires campaign_id and a non-empty queries array');\n}\nconst maximumCandidates = Number(plan.stop_conditions?.maximum_candidates ?? 200);\nconst supported = new Set(['google_maps', 'google_maps_scraper', 'b2b_tn', 'web_search']);\n\nreturn plan.queries.map((query) => {\n  if (!supported.has(query.source_id)) {\n    throw new Error(`Unsupported discovery source: ${query.source_id}`);\n  }\n  return {\n    json: {\n      ...query,\n      campaign_id: plan.campaign_id,\n      maximum_candidates: maximumCandidates,\n      limit_per_query: Math.max(1, Math.min(20, maximumCandidates)),\n    },\n  };\n});\n\n"
+      },
+      "id": "95ef20c6-ec8e-49cc-a104-6b289730eefb",
+      "name": "Expand Discovery Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://discovery-connector:8080/v1/discover",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 290000
+        }
+      },
+      "id": "0a93c026-85ea-49d9-87df-aedfd0f0a341",
+      "name": "Call Discovery Connector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -160,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nconst expected = $('Expand Discovery Queries').item.json;\nconst value = $json;\n\nfor (const field of ['campaign_id', 'query_id', 'source_id', 'status']) {\n  if (typeof value[field] !== 'string' || !value[field]) {\n    throw new Error(`Invalid discovery response: ${field}`);\n  }\n}\nfor (const field of ['campaign_id', 'query_id', 'source_id']) {\n  if (value[field] !== expected[field]) {\n    throw new Error(`Discovery connector changed controlled field: ${field}`);\n  }\n}\nif (!['COMPLETED', 'SKIPPED'].includes(value.status)) {\n  throw new Error(`Invalid discovery status: ${value.status}`);\n}\nif (!Array.isArray(value.candidates) || !Array.isArray(value.warnings)) {\n  throw new Error('Discovery response requires candidates and warnings arrays');\n}\nfor (const candidate of value.candidates) {\n  for (const field of [\n    'source_record_id', 'campaign_id', 'query_id', 'source_name',\n    'source_type', 'source_url', 'retrieved_at', 'checksum',\n  ]) {\n    if (typeof candidate[field] !== 'string' || !candidate[field]) {\n      throw new Error(`Invalid raw-source envelope field: ${field}`);\n    }\n  }\n  if (!candidate.payload || typeof candidate.payload !== 'object') {\n    throw new Error('Raw-source envelope payload must be an object');\n  }\n}\n\nreturn { json: value };\n\n"
+      },
+      "id": "7a28705c-a619-4492-b51a-e2553519c1ee",
+      "name": "Validate Discovery Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        140,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Run Once for All Items.\nconst responses = $input.all().map((item) => item.json);\nconst firstTask = $('Expand Discovery Queries').all()[0].json;\nconst maximumCandidates = firstTask.maximum_candidates;\nconst allCandidates = responses.flatMap((response) => response.candidates);\nconst rawCandidates = allCandidates.slice(0, maximumCandidates);\nconst warnings = responses.flatMap((response) => response.warnings);\nif (allCandidates.length > maximumCandidates) {\n  warnings.push(`Candidate limit applied: ${allCandidates.length} reduced to ${maximumCandidates}`);\n}\nconst completed = responses.filter((response) => response.status === 'COMPLETED').length;\nconst skipped = responses.filter((response) => response.status === 'SKIPPED').length;\n\nreturn [{\n  json: {\n    contract_version: '1.0',\n    campaign_id: firstTask.campaign_id,\n    status: skipped === 0 ? 'COMPLETED' : (completed > 0 ? 'PARTIAL' : 'SKIPPED'),\n    queries_attempted: responses.length,\n    queries_completed: completed,\n    queries_skipped: skipped,\n    raw_candidate_count: rawCandidates.length,\n    raw_candidates: rawCandidates,\n    warnings,\n  },\n}];\n\n"
+      },
+      "id": "7ebd6747-8dcb-4783-ae32-a6654fe5ae5b",
+      "name": "Aggregate Discovery Run",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -40
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Example B2B Research Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Example B2B Research Plan": {
+      "main": [
+        [
+          {
+            "node": "Expand Discovery Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Plan Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Research Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Research Plan": {
+      "main": [
+        [
+          {
+            "node": "Expand Discovery Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Discovery Queries": {
+      "main": [
+        [
+          {
+            "node": "Call Discovery Connector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Discovery Connector": {
+      "main": [
+        [
+          {
+            "node": "Validate Discovery Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Discovery Response": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Discovery Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a153e264-89c7-4454-8953-ff5227a3d4a5",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

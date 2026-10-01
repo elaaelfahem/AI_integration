@@ -1,0 +1,260 @@
+{
+  "id": "rV5n2K8pC1mQ7tL3",
+  "name": "DME RNE Validation - Official Enrichment",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "62b4bd0c-1b6a-4447-a9f1-1c34e8cdfa5b",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1080,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\"normalization\": {\"contract_version\": \"1.0\", \"campaign_id\": \"campaign-rne-test-001\", \"status\": \"COMPLETED\", \"raw_candidate_count\": 2, \"unique_company_count\": 2, \"duplicates_merged\": 0, \"review_required_count\": 0, \"companies\": [{\"company_id\": \"cmp_no_identifier\", \"canonical_name\": \"Entreprise sans identifiant\", \"legal_identifier\": null, \"source_ids\": [\"google_maps\"], \"source_records\": [{\"source_record_id\": \"src-001\"}], \"review_required\": false}, {\"company_id\": \"cmp_with_identifier\", \"canonical_name\": \"Entreprise Exemple SARL\", \"legal_identifier\": \"1234567A\", \"source_ids\": [\"b2b_tn\"], \"source_records\": [{\"source_record_id\": \"src-002\"}], \"review_required\": false}], \"warnings\": []}, \"official_validation\": {\"enabled\": true, \"source_id\": \"rne_kyc\", \"mode\": \"WHEN_IDENTIFIER_AVAILABLE\", \"failure_policy\": \"REVIEW\", \"enrich\": true}} }];"
+      },
+      "id": "d5e834f8-0b41-4d70-8aca-823655619ee4",
+      "name": "Example RNE Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -840,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dme/rne-validate",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "a127da2a-11bc-4405-8257-b89f8290d2c2",
+      "name": "RNE Validation Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1080,
+        80
+      ],
+      "webhookId": "d64e4622-c84b-47d6-96c7-990d382246af"
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $input.first().json;\nlet request = incoming.body ?? incoming;\nif (Array.isArray(request) && request.length === 1) request = request[0];\nif (!request || typeof request !== 'object' || Array.isArray(request)) {\n  throw new Error('Webhook body must contain one RNE-validation request');\n}\nreturn [{ json: request }];"
+      },
+      "id": "63b209ae-b9d9-4db8-8e42-60bb44a558ac",
+      "name": "Normalize RNE Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -840,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Run Once for All Items.\nconst request = $input.first().json;\nconst normalization = request.normalization;\nconst policy = request.official_validation;\n\nif (!normalization || typeof normalization !== 'object' || !Array.isArray(normalization.companies)) {\n  throw new Error('RNE validation requires a normalization object with companies');\n}\nif (!policy || typeof policy !== 'object') throw new Error('RNE validation requires official_validation policy');\nif (typeof policy.enabled !== 'boolean') throw new Error('official_validation.enabled must be boolean');\nif (!['WHEN_IDENTIFIER_AVAILABLE', 'REQUIRED_BEFORE_READY', 'MANUAL_ONLY'].includes(policy.mode)) {\n  throw new Error(`Unsupported official-validation mode: ${policy.mode}`);\n}\nif (!['CONTINUE_PARTIAL', 'REVIEW', 'BLOCK_READINESS'].includes(policy.failure_policy)) {\n  throw new Error(`Unsupported RNE failure policy: ${policy.failure_policy}`);\n}\nif (normalization.companies.length === 0) throw new Error('RNE validation received no companies');\n\nreturn normalization.companies.map((company) => ({\n  json: {\n    campaign_id: normalization.campaign_id,\n    company_id: company.company_id,\n    canonical_name: company.canonical_name,\n    identifier: company.legal_identifier,\n    validation_policy: policy,\n    company,\n    normalization_status: normalization.status,\n    normalization_warnings: normalization.warnings ?? [],\n  },\n}));\n"
+      },
+      "id": "2423dbf0-328b-453c-81c4-ecb507520a09",
+      "name": "Prepare RNE Validation Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nreturn {\n  json: {\n    contract_version: '1.0',\n    campaign_id: $json.campaign_id,\n    company_id: $json.company_id,\n    canonical_name: $json.canonical_name,\n    identifier: $json.identifier,\n    validation_policy: $json.validation_policy,\n  },\n};\n"
+      },
+      "id": "42a37ca6-d48f-4bf2-901f-d78701ff1ff7",
+      "name": "Build RNE Connector Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://rne-connector:8081/v1/validate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 3000
+        }
+      },
+      "id": "a1cc46b2-1396-43d3-8983-d3cf61dcb17a",
+      "name": "Call RNE Connector",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        -40
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nconst expected = $('Build RNE Connector Request').item.json;\nconst result = $json;\nif (result && result.error) {\n  return { json: {\n    campaign_id: expected.campaign_id,\n    company_id: expected.company_id,\n    provider: 'RNE',\n    status: 'UNAVAILABLE',\n    conflicts: [],\n    warnings: [`RNE connector unavailable: ${result.error.message ?? 'request failed'}`],\n  }};\n}\nconst statuses = new Set([\n  'NOT_REQUESTED', 'SKIPPED_NO_IDENTIFIER', 'VERIFIED',\n  'NOT_FOUND', 'CONFLICT', 'UNAVAILABLE',\n]);\nfor (const field of ['campaign_id', 'company_id', 'provider', 'status']) {\n  if (typeof result[field] !== 'string' || !result[field]) throw new Error(`RNE response requires ${field}`);\n}\nif (result.campaign_id !== expected.campaign_id || result.company_id !== expected.company_id) {\n  throw new Error('RNE connector changed a controlled identifier');\n}\nif (result.provider !== 'RNE' || !statuses.has(result.status)) {\n  throw new Error(`Invalid RNE provider or status: ${result.status}`);\n}\nif (!Array.isArray(result.conflicts) || !Array.isArray(result.warnings)) {\n  throw new Error('RNE response requires conflicts and warnings arrays');\n}\nif (result.status === 'VERIFIED' && (!result.official_fields || !result.validated_at)) {\n  throw new Error('VERIFIED RNE response requires official fields and validation timestamp');\n}\nreturn { json: result };\n"
+      },
+      "id": "d68cdfb6-0a9f-43e4-a180-79a8333a197e",
+      "name": "Validate RNE Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Run Once for All Items.\nconst responses = $input.all().map((item) => item.json);\nconst tasks = $('Prepare RNE Validation Tasks').all().map((item) => item.json);\nif (responses.length !== tasks.length) throw new Error('RNE response count does not match company count');\n\nconst taskByCompany = new Map(tasks.map((task) => [task.company_id, task]));\nconst responseByCompany = new Map(responses.map((response) => [response.company_id, response]));\nconst policy = tasks[0].validation_policy;\nconst reviewItems = [];\n\nfunction shouldReview(status) {\n  if (status === 'CONFLICT') return true;\n  if (policy.mode === 'MANUAL_ONLY' && status === 'NOT_REQUESTED') return true;\n  return policy.failure_policy === 'REVIEW' && ['NOT_FOUND', 'UNAVAILABLE'].includes(status);\n}\n\nfunction readyForScoring(status) {\n  if (status === 'VERIFIED') return true;\n  if (status === 'CONFLICT') return false;\n  if (policy.mode === 'REQUIRED_BEFORE_READY') return false;\n  if (policy.failure_policy === 'BLOCK_READINESS' && !['SKIPPED_NO_IDENTIFIER', 'NOT_REQUESTED'].includes(status)) return false;\n  return true;\n}\n\nconst companies = tasks.map((task) => {\n  const validation = responseByCompany.get(task.company_id);\n  if (!validation) throw new Error(`Missing RNE response for ${task.company_id}`);\n  const reviewRequired = shouldReview(validation.status);\n  const ready = readyForScoring(validation.status);\n  if (reviewRequired) {\n    reviewItems.push({\n      review_item_id: `rne_review_${task.company_id}`,\n      company_id: task.company_id,\n      type: policy.mode === 'MANUAL_ONLY' ? 'MANUAL_RNE_VALIDATION' : `RNE_${validation.status}`,\n      priority: validation.status === 'CONFLICT' ? 'HIGH' : 'NORMAL',\n      status: 'OPEN',\n      conflicts: validation.conflicts,\n    });\n  }\n  return {\n    ...task.company,\n    official_validation: validation,\n    ready_for_scoring: ready,\n    review_required: Boolean(task.company.review_required || reviewRequired),\n  };\n});\n\nconst counts = Object.fromEntries([\n  'NOT_REQUESTED', 'SKIPPED_NO_IDENTIFIER', 'VERIFIED', 'NOT_FOUND', 'CONFLICT', 'UNAVAILABLE',\n].map((status) => [status.toLocaleLowerCase(), responses.filter((response) => response.status === status).length]));\nconst blockedCount = companies.filter((company) => !company.ready_for_scoring).length;\nlet status = 'COMPLETED';\nif (reviewItems.length) status = 'REVIEW_REQUIRED';\nelse if (blockedCount) status = 'PARTIAL';\n\nconst warnings = [...new Set([\n  ...(tasks[0].normalization_warnings ?? []),\n  ...responses.flatMap((response) => response.warnings ?? []),\n])];\n\nreturn [{\n  json: {\n    contract_version: '1.0',\n    campaign_id: tasks[0].campaign_id,\n    status,\n    provider: 'RNE',\n    policy,\n    company_count: companies.length,\n    counts,\n    ready_for_scoring_count: companies.length - blockedCount,\n    blocked_from_scoring_count: blockedCount,\n    review_required_count: reviewItems.length,\n    companies,\n    review_items: reviewItems,\n    warnings,\n  },\n}];\n"
+      },
+      "id": "16d4952e-832d-42cc-9e3c-15ef52ff455f",
+      "name": "Aggregate RNE Validation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item.\nconst result = $json;\nif (result.contract_version !== '1.0' || typeof result.campaign_id !== 'string') throw new Error('Invalid RNE validation contract');\nif (!['COMPLETED', 'PARTIAL', 'REVIEW_REQUIRED'].includes(result.status)) throw new Error(`Invalid aggregate RNE status: ${result.status}`);\nif (!Array.isArray(result.companies) || !Array.isArray(result.review_items) || !Array.isArray(result.warnings)) {\n  throw new Error('RNE validation result requires companies, review_items, and warnings');\n}\nif (result.company_count !== result.companies.length) throw new Error('RNE company count is inconsistent');\nif (result.ready_for_scoring_count + result.blocked_from_scoring_count !== result.company_count) {\n  throw new Error('RNE readiness counts are inconsistent');\n}\nfor (const company of result.companies) {\n  if (!company.official_validation || company.official_validation.provider !== 'RNE') throw new Error('Company is missing RNE validation envelope');\n  if (typeof company.ready_for_scoring !== 'boolean') throw new Error('Company is missing readiness decision');\n}\nreturn { json: result };\n"
+      },
+      "id": "7f863b1f-5e55-4733-a3c4-19e229f271e6",
+      "name": "Validate RNE Aggregate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        -40
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Example RNE Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Example RNE Request": {
+      "main": [
+        [
+          {
+            "node": "Prepare RNE Validation Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RNE Validation Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize RNE Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize RNE Request": {
+      "main": [
+        [
+          {
+            "node": "Prepare RNE Validation Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare RNE Validation Tasks": {
+      "main": [
+        [
+          {
+            "node": "Build RNE Connector Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build RNE Connector Request": {
+      "main": [
+        [
+          {
+            "node": "Call RNE Connector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call RNE Connector": {
+      "main": [
+        [
+          {
+            "node": "Validate RNE Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate RNE Response": {
+      "main": [
+        [
+          {
+            "node": "Aggregate RNE Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate RNE Validation": {
+      "main": [
+        [
+          {
+            "node": "Validate RNE Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0d22ab43-cd5d-4672-b4d5-20d44665d633",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

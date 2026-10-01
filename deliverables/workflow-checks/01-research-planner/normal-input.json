@@ -1,0 +1,67 @@
+{
+  "campaign_id": "check-research-20260929T195338Z",
+  "campaign_name": "IT companies in Greater Tunis",
+  "countries": [
+    "TN"
+  ],
+  "governorates": [
+    "Tunis"
+  ],
+  "cities": [],
+  "sectors": [
+    "software"
+  ],
+  "keywords": [
+    "cloud",
+    "cybersecurity"
+  ],
+  "excluded_keywords": [
+    "freelancer"
+  ],
+  "employee_range": {
+    "minimum": 10,
+    "maximum": null
+  },
+  "maximum_candidates": 2,
+  "enabled_sources": [
+    {
+      "source_id": "b2b_tn",
+      "source_type": "directory",
+      "capabilities": [
+        "sector",
+        "location",
+        "company_lookup",
+        "pagination"
+      ],
+      "supported_languages": [
+        "fr",
+        "en"
+      ]
+    },
+    {
+      "source_id": "rne_kyc",
+      "source_type": "registry",
+      "capabilities": [
+        "company_lookup"
+      ],
+      "supported_languages": [
+        "fr"
+      ]
+    }
+  ],
+  "official_validation": {
+    "enabled": true,
+    "source_id": "rne_kyc",
+    "mode": "WHEN_IDENTIFIER_AVAILABLE",
+    "failure_policy": "REVIEW",
+    "enrich": true
+  },
+  "language_preferences": [
+    "fr",
+    "en"
+  ],
+  "limits": {
+    "maximum_queries": 1,
+    "maximum_queries_per_source": 1
+  }
+}

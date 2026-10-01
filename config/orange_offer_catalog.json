@@ -1,0 +1,15 @@
+{
+  "catalog_version": "orange-offer-families-1.0",
+  "source": "CDC.docx section 1",
+  "commercial_details_status": "REQUIRES_OFFICIAL_CATALOG",
+  "offers": [
+    {"offer_id":"mobile","name":"Mobile","signal_terms":["mobile","terrain","field","commercial","sales","fleet","flotte","livraison","delivery"]},
+    {"offer_id":"broad_band","name":"Broad Band","signal_terms":["internet","software","logiciel","informatique","digital","cloud","bureau","office"]},
+    {"offer_id":"data","name":"Data","signal_terms":["data","donnée","cloud","hosting","hébergement","software","logiciel","informatique"]},
+    {"offer_id":"wifi","name":"WiFi","signal_terms":["wifi","hotel","hôtel","restaurant","retail","magasin","campus","public","visiteur"]},
+    {"offer_id":"voip","name":"VoIP","signal_terms":["voip","call center","centre d'appel","support","hotline","multi-site","multisite"]},
+    {"offer_id":"mssp","name":"MSSP","signal_terms":["security","sécurité","cyber","finance","banque","fintech","cloud","data","donnée"]},
+    {"offer_id":"bulk_sms","name":"Bulk SMS","signal_terms":["sms","marketing","retail","magasin","ecommerce","e-commerce","client","notification"]},
+    {"offer_id":"office_365","name":"Office 365","signal_terms":["office","bureau","collaboration","email","équipe","team","software","logiciel","informatique"]}
+  ]
+}

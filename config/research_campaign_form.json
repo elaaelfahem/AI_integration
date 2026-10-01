@@ -1,0 +1,49 @@
+{
+  "parameters": {
+    "formTitle": "Company discovery campaign",
+    "formDescription": "Tell us which companies you want to find. Separate multiple sectors, governorates and keywords with commas (for example: software, IT services / Tunis, Ariana). Maximum candidates: a whole number from 1 to 200. This form prepares a search plan; it does not collect companies.",
+    "formFields": {
+      "values": [
+        {
+          "fieldLabel": "Campaign name",
+          "fieldName": "campaign_name",
+          "placeholder": "e.g. IT companies in Greater Tunis",
+          "requiredField": true
+        },
+        {
+          "fieldLabel": "Sectors",
+          "requiredField": true
+        },
+        {
+          "fieldLabel": "Governorates",
+          "requiredField": true
+        },
+        {
+          "fieldLabel": "Keywords"
+        },
+        {
+          "fieldLabel": "Maximum candidates",
+          "fieldType": "number",
+          "defaultValue": "200"
+        }
+      ]
+    },
+    "responseMode": "lastNode",
+    "options": {
+      "respondWithOptions": {
+        "values": {
+          "formSubmittedText": "Your search plan is ready. Open the research workflow in n8n and inspect Aggregate Query Plan to see the generated searches. No company collection has been run."
+        }
+      }
+    }
+  },
+  "type": "n8n-nodes-base.formTrigger",
+  "typeVersion": 2.6,
+  "position": [
+    -980,
+    340
+  ],
+  "id": "9ef87ebc-e377-4c66-90c0-e8da23e79644",
+  "name": "On form submission",
+  "webhookId": "8ed66a1c-acbb-4dcc-82ea-ca951ca50194"
+}

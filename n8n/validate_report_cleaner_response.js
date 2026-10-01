@@ -1,0 +1,1 @@
+const r=$json;if(!r.company_id||!r.original_report_sha256||!r.original_report||!Array.isArray(r.needs)||!Array.isArray(r.next_actions)||!Array.isArray(r.warnings))throw Error('Invalid cleaned report');return{json:r};

@@ -1,0 +1,115 @@
+{
+  "id": "rC9m4K2nT7pV5lA1",
+  "name": "DME Report Cleaner - Evidence Preserving",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dme/clean-report",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "ec57bc65-9e77-441b-aaed-6809a495c337",
+      "name": "Report Cleaner Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        0
+      ],
+      "webhookId": "90f34538-d95d-49aa-944b-a940b3650b22"
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$input.first().json;let r=x.body??x;if(Array.isArray(r)&&r.length===1)r=r[0];if(!r?.company_id||typeof r.raw_report!=='string'||!r.raw_report.trim())throw Error('company_id and raw_report are required');return[{json:{company_id:r.company_id,raw_report:r.raw_report,enable_ai:r.enable_ai===true}}];"
+      },
+      "id": "9783f45a-1fbb-47f1-a5f9-edbe49965e1c",
+      "name": "Normalize Report Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -340,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://report-cleaner-gateway:8085/v1/clean",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 130000
+        }
+      },
+      "id": "116ac300-5ddd-4f8e-b215-5d652656fb61",
+      "name": "Clean Report Safely",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -60,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const r=$json;if(!r.company_id||!r.original_report_sha256||!r.original_report||!Array.isArray(r.needs)||!Array.isArray(r.next_actions)||!Array.isArray(r.warnings))throw Error('Invalid cleaned report');return{json:r};\n"
+      },
+      "id": "739dc6c6-0b40-413d-afb0-e10372485c02",
+      "name": "Validate Cleaned Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Report Cleaner Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Report Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Report Request": {
+      "main": [
+        [
+          {
+            "node": "Clean Report Safely",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Report Safely": {
+      "main": [
+        [
+          {
+            "node": "Validate Cleaned Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d857a6f9-a081-4b09-9fd4-a9b8f3780615",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

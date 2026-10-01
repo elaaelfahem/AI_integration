@@ -1,0 +1,115 @@
+{
+  "id": "dA8m3K1cN7pT5vL2",
+  "name": "DME Assistant - Grounded Sales Copilot",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dme/assistant",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "5d6a32d1-6c68-45f2-9b19-0b23839af18a",
+      "name": "DME Assistant Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        0
+      ],
+      "webhookId": "82370a5c-47f8-4b4c-b3d5-2771715447c2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$input.first().json;let r=x.body??x;if(Array.isArray(r)&&r.length===1)r=r[0];if(!r?.company?.company_id||typeof r.user_question!=='string'||!r.user_question.trim())throw Error('company and user_question are required');return[{json:{company:r.company,user_question:r.user_question,enable_ai:r.enable_ai===true}}];"
+      },
+      "id": "415f07ac-ee63-4d83-b0da-cec763053bea",
+      "name": "Normalize Assistant Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -340,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://dme-assistant-gateway:8084/v1/assist",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 130000
+        }
+      },
+      "id": "464a19f5-5548-48f2-ad75-cf1ec8b045cc",
+      "name": "Call Grounded Assistant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -60,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const r=$json;if(!r.company_id||!r.answer||!Array.isArray(r.key_facts)||!Array.isArray(r.discovery_questions)||!Array.isArray(r.warnings))throw Error('Invalid DME assistant response');return{json:r};\n"
+      },
+      "id": "9081c880-31b1-4c77-8a48-7de6d05e736d",
+      "name": "Validate Assistant Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "DME Assistant Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Assistant Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Assistant Request": {
+      "main": [
+        [
+          {
+            "node": "Call Grounded Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Grounded Assistant": {
+      "main": [
+        [
+          {
+            "node": "Validate Assistant Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4c7060be-dde5-44b7-9857-ea7bbbc72510",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

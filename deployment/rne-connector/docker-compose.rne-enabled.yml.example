@@ -1,0 +1,4 @@
+services:
+  rne-connector:
+    volumes:
+      - ${RNE_API_KEY_FILE_HOST:?Set RNE_API_KEY_FILE_HOST to the absolute secret-file path}:/run/secrets/rne_api_key:ro

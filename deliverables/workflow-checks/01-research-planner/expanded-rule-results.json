@@ -1,0 +1,70 @@
+{
+  "tested_at": "2026-09-29T20:50:32.119Z",
+  "kind": "deployed code isolated checks; not live AI",
+  "checks": [
+    {
+      "name": "Two sectors across four governorates produce eight tasks",
+      "status": "PASS",
+      "actual": 8
+    },
+    {
+      "name": "Registry is excluded from discovery",
+      "status": "PASS",
+      "actual": "No RNE discovery tasks"
+    },
+    {
+      "name": "Overall query cap enforced",
+      "status": "PASS",
+      "actual": 3
+    },
+    {
+      "name": "Per-source cap enforced",
+      "status": "PASS",
+      "actual": [
+        "google_maps",
+        "b2b_tn",
+        "web_search"
+      ]
+    },
+    {
+      "name": "Missing sectors rejected",
+      "status": "PASS",
+      "actual": "Rejected"
+    },
+    {
+      "name": "Repeated sectors and locations do not generate duplicate tasks",
+      "status": "FAIL",
+      "actual": "Expected values to be strictly equal:\n\n4 !== 1\n"
+    },
+    {
+      "name": "Language-incompatible source does not lose a usable sector/location pair",
+      "status": "FAIL",
+      "actual": "Expected values to be strictly equal:\n\n0 !== 1\n"
+    },
+    {
+      "name": "French and English preferences provide both languages when budget permits",
+      "status": "FAIL",
+      "actual": "Actual languages: fr"
+    },
+    {
+      "name": "Zero query budget is explicitly rejected",
+      "status": "FAIL",
+      "actual": "Missing expected exception."
+    },
+    {
+      "name": "Model cannot change campaign identity",
+      "status": "PASS",
+      "actual": "Rejected"
+    },
+    {
+      "name": "Malformed model JSON rejected",
+      "status": "PASS",
+      "actual": "Rejected"
+    },
+    {
+      "name": "Unsuitable English wording falls back to French",
+      "status": "PASS",
+      "actual": "sociétés de logiciels à Tunis"
+    }
+  ]
+}

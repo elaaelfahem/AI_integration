@@ -1,0 +1,292 @@
+{
+  "name": "DME Research Planner - Flowise Query Composer",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "0ba5859e-772a-47fc-bb38-cf47d11af3ee",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -980,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\"campaign_id\": \"campaign-it-grand-tunis-001\", \"campaign_name\": \"IT companies in Greater Tunis\", \"countries\": [\"TN\"], \"governorates\": [\"Tunis\", \"Ariana\", \"Ben Arous\", \"Manouba\"], \"cities\": [], \"sectors\": [\"software\", \"IT services\"], \"keywords\": [\"cloud\", \"cybersecurity\"], \"excluded_keywords\": [\"freelancer\"], \"employee_range\": {\"minimum\": 10, \"maximum\": null}, \"maximum_candidates\": 200, \"enabled_sources\": [{\"source_id\": \"google_maps\", \"source_type\": \"maps\", \"capabilities\": [\"keyword\", \"sector\", \"location\", \"pagination\"], \"supported_languages\": [\"fr\", \"en\"]}, {\"source_id\": \"b2b_tn\", \"source_type\": \"directory\", \"capabilities\": [\"sector\", \"location\", \"company_lookup\", \"pagination\"], \"supported_languages\": [\"fr\", \"en\"]}, {\"source_id\": \"web_search\", \"source_type\": \"web_search\", \"capabilities\": [\"keyword\", \"sector\", \"location\", \"pagination\"], \"supported_languages\": [\"fr\", \"en\", \"ar\"]}, {\"source_id\": \"rne_kyc\", \"source_type\": \"registry\", \"capabilities\": [\"company_lookup\"], \"supported_languages\": [\"fr\"]}], \"official_validation\": {\"enabled\": true, \"source_id\": \"rne_kyc\", \"mode\": \"WHEN_IDENTIFIER_AVAILABLE\", \"failure_policy\": \"REVIEW\", \"enrich\": true}, \"language_preferences\": [\"fr\", \"en\"], \"limits\": {\"maximum_queries\": 40, \"maximum_queries_per_source\": 16}} }];"
+      },
+      "id": "7ec70eaa-ef69-423f-80ea-23d399b404cc",
+      "name": "Example Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -760,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dme/research-plan",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "ebfc7d94-2cad-4975-83fe-22af56ae44b0",
+      "name": "Campaign Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -980,
+        80
+      ],
+      "webhookId": "58ea2876-5e5e-49ca-b9bc-d00ded177bf1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $input.first().json;\nconst campaign = incoming.body ?? incoming;\nif (!campaign || typeof campaign !== 'object' || Array.isArray(campaign)) {\n  throw new Error('Webhook body must contain one campaign JSON object');\n}\nreturn [{ json: campaign }];"
+      },
+      "id": "15dbb49e-f8ac-4675-a660-59e541cb730e",
+      "name": "Normalize Webhook Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -760,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Run Once for All Items\nconst campaign = $input.first().json;\nconst unique = (values) => {\n  const seen = new Set();\n  return (values ?? []).filter((value) => {\n    if (typeof value !== 'string' || value.trim() === '') return false;\n    const key = value.trim().toLocaleLowerCase();\n    if (seen.has(key)) return false;\n    seen.add(key);\n    return true;\n  });\n};\n\nconst locations = unique([...(campaign.governorates ?? []), ...(campaign.cities ?? [])]);\nconst sectors = unique(campaign.sectors);\nconst preferredLanguages = unique(campaign.language_preferences ?? ['fr']);\nconst maximumQueries = campaign.limits?.maximum_queries ?? 40;\nconst maximumPerSource = campaign.limits?.maximum_queries_per_source ?? maximumQueries;\n\nif (!Number.isInteger(maximumQueries) || maximumQueries < 1) {\n  throw new Error('limits.maximum_queries must be a whole number of at least 1');\n}\nif (!Number.isInteger(maximumPerSource) || maximumPerSource < 1) {\n  throw new Error('limits.maximum_queries_per_source must be a whole number of at least 1');\n}\n\nconst sources = (campaign.enabled_sources ?? []).filter((source) => {\n  if (source.source_type === 'registry') return false;\n  return ['keyword', 'sector', 'location'].some((capability) =>\n    (source.capabilities ?? []).includes(capability),\n  );\n});\n\nif (!campaign.campaign_id || sectors.length === 0 || locations.length === 0 || sources.length === 0) {\n  throw new Error('Campaign requires campaign_id, sectors, locations, and at least one discovery source');\n}\nif (preferredLanguages.length === 0) {\n  throw new Error('Campaign requires at least one language preference');\n}\n\nconst sourceCounts = Object.fromEntries(sources.map((source) => [source.source_id, 0]));\nconst tasks = [];\nlet sourceCursor = 0;\n\nfor (const sector of sectors) {\n  for (const location of locations) {\n    for (const language of preferredLanguages) {\n      if (tasks.length >= maximumQueries) break;\n      let selected;\n      for (let offset = 0; offset < sources.length; offset += 1) {\n        const candidate = sources[(sourceCursor + offset) % sources.length];\n        const supportsLanguage = (candidate.supported_languages ?? []).includes(language);\n        if (supportsLanguage && sourceCounts[candidate.source_id] < maximumPerSource) {\n          selected = candidate;\n          sourceCursor = (sourceCursor + offset + 1) % sources.length;\n          break;\n        }\n      }\n      if (!selected) {\n        throw new Error(`No enabled discovery source can create a ${language} query within the configured per-source limit`);\n      }\n      sourceCounts[selected.source_id] += 1;\n      tasks.push({\n        campaign_id: campaign.campaign_id,\n        query_id: `q-${String(tasks.length + 1).padStart(3, '0')}`,\n        source_id: selected.source_id,\n        source_type: selected.source_type,\n        language,\n        sector,\n        location,\n        keywords: campaign.keywords ?? [],\n        priority: 1,\n        query_limit: maximumQueries,\n        maximum_candidates: campaign.maximum_candidates,\n      });\n    }\n    if (tasks.length >= maximumQueries) break;\n  }\n  if (tasks.length >= maximumQueries) break;\n}\n\nif (tasks.length === 0) {\n  throw new Error('Campaign did not produce any discovery query tasks');\n}\n\nreturn tasks.map((json) => ({ json }));\n"
+      },
+      "id": "64bb8513-ef4f-475d-a698-570612d55d15",
+      "name": "Prepare Query Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://flowise:3000/api/v1/prediction/59650638-53f6-4339-bbfa-6d21be5fbf5a",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { question: JSON.stringify($json), overrideConfig: { sessionId: $json.campaign_id + '-' + $json.query_id } } }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "917013bf-1883-4e42-9a86-b8cf23079322",
+      "name": "Call Flowise Query Composer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -220,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n Code node: Run Once for Each Item, directly after the Flowise HTTP Request.\nconst expected = $('Prepare Query Tasks').item.json;\nconst response = $json;\nlet value = response.json ?? response;\n\nif (typeof value === 'string') {\n  value = JSON.parse(value.replace(/^```json\\s*|```$/g, '').trim());\n}\n\nconst requiredStrings = [\n  'campaign_id', 'query_id', 'source_id', 'source_type', 'language',\n  'query', 'sector', 'location', 'intent',\n];\nfor (const field of requiredStrings) {\n  if (typeof value[field] !== 'string' || value[field].trim() === '') {\n    throw new Error(`Invalid composed query: ${field} must be a non-empty string`);\n  }\n}\nfor (const field of ['campaign_id', 'query_id', 'source_id', 'source_type', 'language', 'sector', 'location']) {\n  if (value[field] !== expected[field]) {\n    throw new Error(`Invalid composed query: ${field} changed by the model`);\n  }\n}\nif (!Number.isInteger(value.priority) || value.priority < 1 || value.priority > 5) {\n  throw new Error('Invalid composed query: priority must be an integer from 1 to 5');\n}\n\nconst frenchSector = {\n  software: 'logiciels',\n  'IT services': 'services informatiques',\n};\nconst sectorLabel = value.language === 'fr'\n  ? (frenchSector[expected.sector] ?? expected.sector)\n  : expected.sector;\nconst generatedText = `${value.query} ${value.intent}`;\nconst hasWebOperator = /(^|\\s)(site:|inurl:|intitle:)/i.test(value.query);\nconst obviousEnglishInFrench = value.language === 'fr'\n  && /\\b(company|companies|company discovery|find companies|software company|software|IT services)\\b/i.test(generatedText);\nconst unsuitableForSource = value.source_type !== 'web_search' && hasWebOperator;\n\nif (obviousEnglishInFrench || unsuitableForSource) {\n  if (value.language === 'fr') {\n    value.query = value.source_type === 'web_search'\n      ? `entreprises de ${sectorLabel} à ${value.location} Tunisie`\n      : `sociétés de ${sectorLabel} à ${value.location}`;\n    value.intent = `Découvrir des sociétés de ${sectorLabel} à ${value.location}`;\n  } else {\n    value.query = value.source_type === 'web_search'\n      ? `${sectorLabel} companies in ${value.location}, Tunisia`\n      : `${sectorLabel} companies in ${value.location}`;\n    value.intent = `Discover ${sectorLabel} companies in ${value.location}`;\n  }\n  value._composer_fallback = true;\n  value._composer_warning = `Deterministic fallback used for ${value.query_id}`;\n}\n\nreturn { json: value };\n"
+      },
+      "id": "3b8b7c20-966f-4c77-a178-417f53bb095b",
+      "name": "Validate Composed Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Run Once for All Items, after Validate Composed Query.\nconst warnings = [];\nconst queries = $input.all().map((item) => {\n  const query = { ...item.json };\n  if (query._composer_warning) warnings.push(query._composer_warning);\n  delete query._composer_fallback;\n  delete query._composer_warning;\n  return query;\n});\nqueries.sort((left, right) => left.query_id.localeCompare(right.query_id));\n\nif (queries.length === 0) {\n  throw new Error('Research plan contains no valid queries');\n}\n\nconst task = $('Prepare Query Tasks').all()[0].json;\nconst seen = new Set();\nfor (const query of queries) {\n  const key = [\n    query.source_id,\n    query.language,\n    query.query.toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, ' ').trim(),\n  ].join('|');\n  if (seen.has(key)) {\n    throw new Error(`Duplicate query generated: ${query.query_id}`);\n  }\n  seen.add(key);\n}\n\nreturn [{\n  json: {\n    contract_version: '1.0',\n    campaign_id: task.campaign_id,\n    queries,\n    stop_conditions: {\n      maximum_queries: task.query_limit,\n      maximum_candidates: task.maximum_candidates,\n    },\n    warnings,\n    query_count: queries.length,\n  },\n}];\n"
+      },
+      "id": "75f94b9c-62fb-4097-abba-f1864e21d6ac",
+      "name": "Aggregate Query Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        340,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "Company discovery campaign",
+        "formDescription": "Tell us which companies you want to find. Separate multiple sectors, governorates and keywords with commas (for example: software, IT services / Tunis, Ariana). Maximum candidates: a whole number from 1 to 200. This form prepares a search plan; it does not collect companies.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Campaign name",
+              "fieldName": "campaign_name",
+              "placeholder": "e.g. IT companies in Greater Tunis",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Sectors",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Governorates",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Keywords"
+            },
+            {
+              "fieldLabel": "Maximum candidates",
+              "fieldType": "number",
+              "defaultValue": "200"
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {
+          "respondWithOptions": {
+            "values": {
+              "formSubmittedText": "Your search plan is ready. Open the research workflow in n8n and inspect Aggregate Query Plan to see the generated searches. No company collection has been run."
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        -980,
+        340
+      ],
+      "id": "9ef87ebc-e377-4c66-90c0-e8da23e79644",
+      "name": "On form submission",
+      "webhookId": "8ed66a1c-acbb-4dcc-82ea-ca951ca50194"
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $input.first().json;\nconst list = (value) => [...new Set(String(value ?? '').split(/[,;\\n]+/).map(v => v.trim()).filter(Boolean))];\nconst name = String(form.campaign_name ?? '').trim();\nconst sectors = list(form.Sectors);\nconst governorates = list(form.Governorates);\nconst keywords = list(form.Keywords);\nconst rawLimit = form['Maximum candidates'];\nconst maximumCandidates = rawLimit === '' || rawLimit == null ? 200 : Number(rawLimit);\nif (!name) throw new Error('Please enter a campaign name.');\nif (!sectors.length) throw new Error('Please enter at least one sector.');\nif (!governorates.length) throw new Error('Please enter at least one governorate.');\nif (!Number.isInteger(maximumCandidates) || maximumCandidates < 1 || maximumCandidates > 200) throw new Error('Maximum candidates must be a whole number from 1 to 200.');\nconst languagePreferences = ['fr', 'en'];\nif (sectors.length * governorates.length * languagePreferences.length > 40) throw new Error('Please use no more than 20 sector and governorate combinations because the campaign generates French and English queries.');\nreturn [{json: {\n campaign_id: 'campaign-form-' + $execution.id,\n campaign_name: name, countries: ['TN'], governorates, cities: [], sectors, keywords,\n excluded_keywords: [], employee_range: {minimum: null, maximum: null}, maximum_candidates: maximumCandidates,\n enabled_sources: [\n  {source_id:'google_maps',source_type:'maps',capabilities:['keyword','sector','location','pagination'],supported_languages:['fr','en']},\n  {source_id:'b2b_tn',source_type:'directory',capabilities:['sector','location','company_lookup','pagination'],supported_languages:['fr','en']},\n  {source_id:'web_search',source_type:'web_search',capabilities:['keyword','sector','location','pagination'],supported_languages:['fr','en','ar']},\n  {source_id:'rne_kyc',source_type:'registry',capabilities:['company_lookup'],supported_languages:['fr']}\n ],\n official_validation:{enabled:true,source_id:'rne_kyc',mode:'WHEN_IDENTIFIER_AVAILABLE',failure_policy:'REVIEW',enrich:true},\n language_preferences:languagePreferences, limits:{maximum_queries:40,maximum_queries_per_source:16}\n}}];\n"
+      },
+      "id": "f890349c-2bfa-491f-afea-fcc57b450298",
+      "name": "Build Campaign From Form",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -760,
+        340
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Example Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Example Campaign": {
+      "main": [
+        [
+          {
+            "node": "Prepare Query Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Campaign Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Webhook Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Webhook Campaign": {
+      "main": [
+        [
+          {
+            "node": "Prepare Query Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Query Tasks": {
+      "main": [
+        [
+          {
+            "node": "Call Flowise Query Composer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Flowise Query Composer": {
+      "main": [
+        [
+          {
+            "node": "Validate Composed Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Composed Query": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Query Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Build Campaign From Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Campaign From Form": {
+      "main": [
+        [
+          {
+            "node": "Prepare Query Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2b173586-a009-407b-beaf-fdb371358943",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

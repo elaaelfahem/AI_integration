@@ -1,0 +1,17 @@
+const fs=require('fs'),assert=require('assert/strict');
+const base='/usr/local/lib/node_modules/flowise/node_modules/flowise-components/dist/';
+const u=require(base+'src/utils.js');
+const flow=JSON.parse(fs.readFileSync('/tmp/b2b-all-in-one.json','utf8'));
+async function run(request){let state={job:'{}',ai:'false',prompt:'',model:''},out;for(const n of flow.nodes){const d=n.data;if(d.name!=='customFunctionAgentflow')continue;const sandbox=u.createCodeExecutionSandbox(JSON.stringify(request),[],{input:JSON.stringify(request),state});try{out=await u.executeJavaScriptCode(d.inputs.customFunctionJavascriptFunction,sandbox,{});}catch(e){throw Error(d.label+': '+e.message);}if(typeof out!=='string')out=JSON.stringify(out);for(const s of d.inputs.customFunctionUpdateState||[])state[s.key]=s.value==='{{ output }}'?out:s.value;}return typeof out==='string'?JSON.parse(out):out;}
+(async()=>{
+ const report=await run({operation:'report',company_id:'test',raw_report:'Premier contact. Besoin Office 365. Envoyer une proposition mardi.'});assert.equal(report.company_id,'test');assert.equal(report.model_used,false);assert.ok(report.original_report_sha256);console.log('PASS report');
+ const risk=await run({operation:'risk',event_id:'event',payload:{rne_status:'CONFLICT',password:'test-secret'}});assert.equal(risk.disposition,'BLOCK_AND_REVIEW');assert.ok(!JSON.stringify(risk).includes('test-secret'));console.log('PASS risk');
+ const company={company_id:'test',canonical_name:'Test SARL',scoring:{total_score:50,category:'B',ready_for_offer_recommendation:true},offer_recommendation:{recommendations:[]}};
+ const assistant=await run({operation:'assistant',company,user_question:'Préparer la visite'});assert.ok(assistant.answer.includes('Test SARL'));console.log('PASS assistant');
+ const campaign=await run({operation:'campaign',campaign_id:'flowise-test',sectors:['software'],governorates:['Tunis'],enabled_sources:['web_search'],maximum_candidates:1});assert.equal(campaign.companies.length,0);assert.notEqual(campaign.pipeline_status,'COMPLETED');console.log('PASS empty/skipped campaign');
+ const stage=flow.nodes.find(n=>n.data.label==='Collect websites & extract contact evidence').data;
+ async function enrich(website){const j={operation:'campaign',campaign:{campaign_id:'website-test',maximum_enrichment_companies:1},companies:[{company_id:'web-test',canonical_name:'Example',website}]};const sandbox=u.createCodeExecutionSandbox('',[],{input:'',state:{job:JSON.stringify(j)}});const out=await u.executeJavaScriptCode(stage.inputs.customFunctionJavascriptFunction,sandbox,{});return typeof out==='string'?JSON.parse(out):out;}
+ const unsafe=await enrich('http://127.0.0.1:3000');assert.equal(unsafe.extractions[0].collection_status,'BLOCKED_UNSAFE_URL');console.log('PASS private website blocked');
+ if(process.argv.includes('--live')){const website=await enrich('https://example.com');assert.equal(website.extractions[0].collection_status,'COLLECTED');console.log('PASS live public website collection');}
+ if(process.argv.includes('--live')){const live=await run({operation:'campaign',campaign_id:'flowise-live-test',sectors:['software'],governorates:['Tunis'],maximum_candidates:1,maximum_enrichment_companies:1});fs.writeFileSync('/tmp/b2b-flowise-live-result.json',JSON.stringify(live,null,2));assert.equal(live.companies.length,1);assert.ok(live.companies[0].scoring);console.log('PASS live B2B discovery / normalization / RNE / enrichment / scoring / offers');}
+})().catch(e=>{console.error(e);process.exitCode=1});

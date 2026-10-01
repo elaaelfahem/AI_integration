@@ -1,0 +1,13 @@
+services:
+  report-cleaner-gateway:
+    build: ../../services/report-cleaner-gateway
+    container_name: b2b-report-cleaner-gateway
+    restart: unless-stopped
+    environment:
+      FLOWISE_URL: http://docker-flowise-1:3000
+      REPORT_CLEANER_FLOW_ID: b7c3e2f1-8d64-4a95-a210-3c4d5e6f7081
+      FLOWISE_TIMEOUT_MS: 60000
+    ports: ["127.0.0.1:8086:8085"]
+    networks: [docker_default]
+networks:
+  docker_default: {external: true}
