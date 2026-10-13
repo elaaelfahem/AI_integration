@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { assessPage, preclassify, qualifyDiscovery } from '../services/discovery-connector/qualify.mjs';
+const record = { source_name: 'web_search', source_record_id: 'web1', campaign_id: 'test', source_url: 'https://acme.tn/', payload: { title: 'ACME | Services', url: 'https://acme.tn/' } };
+const page = { source_url: 'https://www.acme.tn/', http_status: 200, title: 'ACME | Services', text: 'ACME: nos services et nos solutions pour nos clients.', checksum: 'evidence-checksum', retrieved_at: '2026-10-08T00:00:00Z', evidence_links: [{ type: 'email', value: 'contact@acme.tn' }] };
+assert.equal(assessPage(record, page).status, 'QUALIFIED');
+assert.equal(assessPage(record, { ...page, evidence_links: [] }).status, 'REVIEW_REQUIRED');
+assert.equal(assessPage(record, { ...page, source_url: 'https://impostor.tn' }).reason, 'DOMAIN_MISMATCH');
+assert.equal(assessPage(record, { ...page, title: 'Other Company' }).status, 'REVIEW_REQUIRED');
+assert.equal(assessPage(record, { ...page, text: 'This domain is for sale' }).status, 'REVIEW_REQUIRED');
+assert.equal(assessPage({ ...record, payload: { url: 'https://acmefake.tn' } }, { ...page, source_url: 'https://acmefake.tn' }).reason, 'BUSINESS_IDENTITY_UNCLEAR');
+assert.equal(assessPage(record, undefined).reason, 'WEBSITE_UNAVAILABLE');
+for (const url of ['https://fr.scribd.com/company', 'https://goafricaonline.com/tn/entreprises', 'https://example.org/list.pdf', 'https://acme.tn/blog/article', 'javascript:alert(1)', 'https://user:pass@acme.tn']) assert.ok(preclassify({ ...record, payload: { url } }));
+const input = { campaign_id: 'test', raw_candidates: [record, { ...record, source_record_id: 'web2', payload: { url: 'https://scribd.com/document' } }, { ...record, source_name: 'google_maps', source_record_id: 'maps', payload: { name: 'ACME', websiteUri: 'https://acme.tn' } }] };
+const original = JSON.stringify(input);
+const qualified = await qualifyDiscovery(input, { collect: async () => ({ pages: [page] }) });
+assert.equal(JSON.stringify(input), original, 'raw data must remain unchanged');
+assert.equal(qualified.web_qualifications.length, 2);
+const normalize = new Function('$input', readFileSync('n8n/normalize_and_deduplicate_candidates.js', 'utf8'));
+const result = normalize({ first: () => ({ json: qualified }) })[0].json;
+assert.equal(result.raw_candidate_count, 3);
+assert.equal(result.excluded_candidate_count, 1);
+assert.equal(result.unique_company_count, 1);
+assert.equal(result.duplicates_merged, 1);
+assert.equal(result.companies[0].website, 'https://acme.tn');
+assert.equal(result.companies[0].web_qualifications[0].evidence.checksum, page.checksum);
+new Function('$json', readFileSync('n8n/validate_normalization_result.js', 'utf8'))(result);
+const absent = normalize({ first: () => ({ json: { campaign_id: 'test', raw_candidates: [record] } }) })[0].json;
+assert.equal(absent.companies.length, 0, 'unqualified web hits must not become companies');
+assert.equal(absent.status, 'REVIEW_REQUIRED');
+const limited = await qualifyDiscovery({ campaign_id: 'test', raw_candidates: [record] }, { maxChecks: 0, collect: () => { throw new Error('must not fetch'); } });
+assert.equal(limited.web_qualifications[0].reason, 'QUALIFICATION_LIMIT');
+const failed = await qualifyDiscovery({ campaign_id: 'test', raw_candidates: [record] }, { collect: async () => { throw new Error('offline'); } });
+assert.equal(failed.web_qualifications[0].reason, 'WEBSITE_COLLECTION_FAILED');
+console.log('PASS: supported website, directories/documents/editorial rejection, contact/brand/domain evidence, parked/offline sites, immutable evidence, limits, cross-source deduplication and excluded-count invariants');
+const crossChecked = await qualifyDiscovery(input, { collect: async () => ({ pages: [page] }) });
+assert.equal(crossChecked.web_qualifications.find(q => q.source_record_id==='web1').website_status, 'CORROBORATED_BY_DISCOVERY_SOURCE');
+assert.equal(crossChecked.web_qualifications.find(q => q.source_record_id==='web1').ownership_verified, false);
+const mismatch = await qualifyDiscovery({ campaign_id:'test', raw_candidates:[record] }, {
+  collect: async () => ({pages:[page]}),
+  corroborate: async () => [{source_name:'google_maps',payload:{name:'Different Brand',website:'https://acme.tn'}}],
+});
+assert.equal(mismatch.web_qualifications[0].website_status,'SUPPORTED_BY_SITE_EVIDENCE');
+console.log('PASS independent domain/name corroboration and mismatched-name rejection');

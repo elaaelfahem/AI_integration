@@ -12,6 +12,7 @@ if (!Array.isArray(discovery.raw_candidates)) {
   throw new Error('Discovery result requires raw_candidates');
 }
 
+const qualificationById = new Map((discovery.web_qualifications ?? []).map(item => [item.source_record_id, item]));
 const text = (value) => value === null || value === undefined ? '' : String(value).trim();
 const firstText = (...values) => values.map(text).find(Boolean) ?? '';
 const unique = (values) => [...new Set(values.filter(Boolean))];
@@ -92,10 +93,11 @@ function candidateFromEnvelope(envelope) {
   }
   const payload = envelope.payload;
   const displayName = typeof payload.displayName === 'object' ? payload.displayName?.text : payload.displayName;
-  const name = firstText(payload.company_name, payload.name, payload.title, displayName, payload.raison_sociale, payload.legal_name);
+  const qualification = envelope.source_name === 'web_search' ? qualificationById.get(envelope.source_record_id) : null;
+  const name = firstText(qualification?.company_name, payload.company_name, payload.name, payload.title, displayName, payload.raison_sociale, payload.legal_name);
   if (!name) throw new Error(`Candidate ${envelope.source_record_id ?? 'unknown'} has no company name`);
 
-  const websiteValues = valuesFrom(payload, ['website', 'websiteUri', 'site_web', 'url_site']).map(website).filter(Boolean);
+  const websiteValues = (qualification ? [qualification.website] : valuesFrom(payload, ['website', 'websiteUri', 'site_web', 'url_site'])).map(website).filter(Boolean);
   const phoneValues = valuesFrom(payload, ['phone', 'phones', 'telephone', 'mobile', 'nationalPhoneNumber', 'internationalPhoneNumber']).map(phone).filter(Boolean);
   const emailValues = valuesFrom(payload, ['email', 'emails', 'mail']).map(email).filter(Boolean);
   const address = firstText(payload.formattedAddress, payload.address, payload.adresse, payload.location_name);
@@ -110,6 +112,7 @@ function candidateFromEnvelope(envelope) {
 
   return {
     source_record_id: text(envelope.source_record_id),
+    qualification,
     name,
     normalized_name: normalized(name),
     websites: unique(websiteValues),
@@ -182,7 +185,19 @@ function match(left, right) {
   return { score: 0, reason: '' };
 }
 
-const candidates = discovery.raw_candidates.map(candidateFromEnvelope);
+const excludedCandidates = [];
+const eligibleEnvelopes = discovery.raw_candidates.filter(envelope => {
+  if (envelope.source_name !== 'web_search') return true;
+  const qualification = qualificationById.get(envelope.source_record_id);
+  if (qualification?.status === 'QUALIFIED' && qualification.website && qualification.evidence) return true;
+  excludedCandidates.push({ source_record_id: envelope.source_record_id,
+    status: qualification?.status === 'REJECTED' ? 'REJECTED' : 'REVIEW_REQUIRED',
+    reason: qualification?.reason || 'QUALIFICATION_NOT_RUN',
+    source_url: envelope.source_url, payload: envelope.payload,
+    qualification: qualification ?? null });
+  return false;
+});
+const candidates = eligibleEnvelopes.map(candidateFromEnvelope);
 const parent = candidates.map((_, index) => index);
 const find = (index) => parent[index] === index ? index : (parent[index] = find(parent[index]));
 const join = (left, right) => {
@@ -236,6 +251,7 @@ const groupEntries = [...groups.values()].map((members) => {
     company: {
       company_id: stableId(identity),
       canonical_name: primary.name,
+      web_qualifications: members.map(({ candidate }) => candidate.qualification).filter(Boolean),
       normalized_name: primary.normalized_name,
       legal_identifier: primary.legal_identifier || null,
       website: primary.websites[0] ?? null,
@@ -279,8 +295,11 @@ return [{
   json: {
     contract_version: '1.0',
     campaign_id: discovery.campaign_id,
-    status: reviewRequiredCount ? 'REVIEW_REQUIRED' : 'COMPLETED',
-    raw_candidate_count: candidates.length,
+    status: reviewRequiredCount || excludedCandidates.some(item => item.status === 'REVIEW_REQUIRED') ? 'REVIEW_REQUIRED' : 'COMPLETED',
+    raw_candidate_count: discovery.raw_candidates.length,
+    qualified_candidate_count: candidates.length,
+    excluded_candidate_count: excludedCandidates.length,
+    excluded_candidates: excludedCandidates,
     unique_company_count: companies.length,
     duplicates_merged: candidates.length - companies.length,
     review_required_count: reviewRequiredCount,

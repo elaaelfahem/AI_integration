@@ -1,0 +1,898 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AccountType {
+  USER
+  SUPERADMIN
+}
+
+enum UserRole {
+  MANAGER
+  AGENT
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  BLOCKED
+  DELETED
+}
+
+enum SuperadminStatus {
+  PENDING
+  ACTIVE
+}
+
+enum MfaType {
+  EMAIL
+  SMS
+  AUTH
+}
+
+enum ConnectionStatus {
+  SUCCESS
+  MFA_REQUIRED
+  FAILED
+  PASSWORD_CHANGED
+}
+
+enum CompanyStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ClientCategory {
+  BRONZE
+  SILVER
+  GOLD
+  DIAMOND
+}
+
+enum DataSourceType {
+  OFFICIAL_REGISTRY
+  BUSINESS_DIRECTORY
+  MAPS
+  SOCIAL_NETWORK
+  COMPANY_WEBSITE
+  JOB_PLATFORM
+  OTHER
+}
+
+enum CollectionMethod {
+  API
+  CRAWLING
+  IMPORT
+  MANUAL
+}
+
+enum CollectionJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum CompanyHistoryAction {
+  CREATED
+  UPDATED
+  ENRICHED
+}
+
+enum AssignmentStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ProspectionStatus {
+  PLANNED
+  IN_PROGRESS
+  VISITED
+  FOLLOW_UP
+  CONVERTED
+  CLOSED
+}
+
+enum ReportVerdict {
+  QUALIFIED_FOLLOW_UP
+  PENDING_INFORMATION
+  NOT_ELIGIBLE
+  CONVERTED
+}
+
+enum ReportProcessingStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum AssignmentPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum VisitType {
+  FIRST_VISIT
+  FOLLOW_UP
+  DEMONSTRATION
+  CONTRACT
+  OTHER
+}
+
+enum TicketType {
+  TECHNICAL
+  CONNECTION
+  COMPANY
+  REPORT
+  AI
+  VISIT
+  OTHER
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum ProspectingEntryStatus {
+  SURFACED
+  SHORTLISTED
+  ASSIGNED
+  REMOVED
+}
+
+enum ProspectingRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model Account {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_type AccountType
+
+  user                       User?
+  superadmin                 Superadmin?
+  sessions                   Session[]            @relation("AccountSessions")
+  active_session_id          String?              @unique @db.Uuid
+  active_session             Session?             @relation("ActiveSession", fields: [active_session_id], references: [id])
+  mfa_codes                  MfaCode[]
+  password_reset_codes       PasswordResetCode[]
+  invites_received           InviteToken[]        @relation("InviteRecipient")
+  invites_sent               InviteToken[]        @relation("InviteSender")
+  connection_events          ConnectionEvent[]
+  companies_created          Company[]            @relation("CompanyCreatedBy")
+  assignments_managed        Assignment[]         @relation("AssignmentManager")
+  assignments_agent          Assignment[]         @relation("AssignmentAgent")
+  meetings_managed           ProspectingMeeting[] @relation("MeetingManager")
+  meetings_agent             ProspectingMeeting[] @relation("MeetingAgent")
+  tickets_created            Ticket[]             @relation("TicketCreatedBy")
+  ticket_replies             TicketReply[]        @relation("TicketReplyAuthor")
+  data_sources_created       DataSource[]         @relation("DataSourceCreatedBy")
+  collection_jobs_requested  CollectionJob[]      @relation("CollectionJobRequestedBy")
+  company_history            CompanyHistory[]     @relation("CompanyHistoryActor")
+  prospecting_criteria       ProspectingCriteria?
+  prospecting_runs_requested ProspectingRun[]     @relation("ProspectingRunRequester")
+  prospecting_entries        ProspectingEntry[]   @relation("ProspectingEntryActor")
+  prospections_managed       Prospection[]        @relation("ProspectionManager")
+  prospections_agent         Prospection[]        @relation("ProspectionAgent")
+  field_reports_created      FieldReport[]        @relation("FieldReportCreator")
+  tickets_assigned           Ticket[]             @relation("TicketAssignee")
+  visit_report_notes         VisitReportNote[]    @relation("VisitReportNoteAuthor")
+  device_tokens              DeviceToken[]
+  notifications              Notification[]
+
+  @@map("accounts")
+}
+
+model User {
+  id                            String     @id @db.Uuid
+  email                         String     @unique @db.VarChar(255)
+  password_hash                 String     @db.VarChar(255)
+  role                          UserRole   @default(AGENT)
+  status                        UserStatus @default(PENDING)
+  first_name                    String     @db.VarChar(100)
+  last_name                     String     @db.VarChar(100)
+  phone                         String?    @db.VarChar(30)
+  failed_login_attempts         Int        @default(0) @db.SmallInt
+  locked_until                  DateTime?  @db.Timestamptz
+  password_reset_required       Boolean    @default(false)
+  password_reset_required_at    DateTime?  @db.Timestamptz
+  password_reset_required_by_id String?    @db.Uuid
+  mfa_enabled                   Boolean    @default(false)
+  mfa_secret                    String?    @db.VarChar(255)
+  mfa_type                      MfaType?
+  avatar_mime                   String?    @db.VarChar(120)
+  avatar_data                   Bytes?
+  notify_analysis_results       Boolean    @default(true)
+  notify_work_updates           Boolean    @default(true)
+  email_opt_outs                String[]   @default([])
+  /// Language of emails and notifications ("fr" or "en"). New and invited accounts start in French.
+  locale                        String     @default("fr") @db.VarChar(5)
+  manager_id                    String?    @db.Uuid
+  latest_login                  DateTime?  @db.Timestamptz
+  created_at                    DateTime   @default(now()) @db.Timestamptz
+  updated_at                    DateTime   @default(now()) @updatedAt @db.Timestamptz
+
+  account   Account   @relation(fields: [id], references: [id], onDelete: Cascade)
+  manager   User?     @relation("ManagerAgents", fields: [manager_id], references: [id])
+  agents    User[]    @relation("ManagerAgents")
+  companies Company[] @relation("CompanyManager")
+
+  @@index([email], map: "idx_users_email")
+  @@index([manager_id], map: "idx_users_manager_id")
+  @@map("users")
+}
+
+model Company {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String          @db.VarChar(255)
+  sector          String?         @db.VarChar(120)
+  contact_name    String?         @db.VarChar(160)
+  phone           String?         @db.VarChar(30)
+  email           String?         @db.VarChar(255)
+  address         String?         @db.VarChar(500)
+  notes           String?
+  ai_score        Int?            @db.SmallInt
+  ai_source_id    String?         @db.VarChar(255)
+  ai_context      Json?
+  governorate     String?         @db.VarChar(60)
+  delegation      String?         @db.VarChar(80)
+  client_category ClientCategory?
+  mobile_lines    Int?            @db.SmallInt
+  status          CompanyStatus   @default(ACTIVE)
+  created_by_id   String          @db.Uuid
+  manager_id      String?         @db.Uuid
+  created_at      DateTime        @default(now()) @db.Timestamptz
+  updated_at      DateTime        @updatedAt @db.Timestamptz
+
+  created_by          Account                 @relation("CompanyCreatedBy", fields: [created_by_id], references: [id])
+  manager             User?                   @relation("CompanyManager", fields: [manager_id], references: [id])
+  assignments         Assignment[]
+  meetings            ProspectingMeeting[]
+  source_evidence     CompanySourceEvidence[]
+  history             CompanyHistory[]
+  prospecting_entries ProspectingEntry[]
+  prospections        Prospection[]
+  tickets             Ticket[]
+
+  @@unique([created_by_id, ai_source_id])
+  @@index([name])
+  @@index([status])
+  @@index([governorate])
+  @@index([client_category])
+  @@map("companies")
+}
+
+model DataSource {
+  id                      String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String           @unique @db.VarChar(160)
+  type                    DataSourceType
+  collection_method       CollectionMethod
+  configuration_reference String?          @db.VarChar(255)
+  logo_url                String?          @db.VarChar(500)
+  description             String?
+  enabled                 Boolean          @default(true)
+  retired_at              DateTime?        @db.Timestamptz
+  created_by_id           String           @db.Uuid
+  created_at              DateTime         @default(now()) @db.Timestamptz
+  updated_at              DateTime         @updatedAt @db.Timestamptz
+
+  created_by  Account                   @relation("DataSourceCreatedBy", fields: [created_by_id], references: [id])
+  job_sources DataSourceCollectionJob[]
+  evidence    CompanySourceEvidence[]
+
+  @@index([enabled, retired_at], map: "idx_data_sources_available")
+  @@index([type], map: "idx_data_sources_type")
+  @@map("data_sources")
+}
+
+model CollectionJob {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requested_by_id  String              @db.Uuid
+  status           CollectionJobStatus @default(QUEUED)
+  filters          Json?
+  discovered_count Int                 @default(0)
+  created_count    Int                 @default(0)
+  enriched_count   Int                 @default(0)
+  failure_message  String?             @db.VarChar(1000)
+  started_at       DateTime?           @db.Timestamptz
+  completed_at     DateTime?           @db.Timestamptz
+  created_at       DateTime            @default(now()) @db.Timestamptz
+  updated_at       DateTime            @updatedAt @db.Timestamptz
+
+  requested_by Account                   @relation("CollectionJobRequestedBy", fields: [requested_by_id], references: [id])
+  sources      DataSourceCollectionJob[]
+  evidence     CompanySourceEvidence[]
+
+  @@index([status, created_at], map: "idx_collection_jobs_status_created_at")
+  @@index([requested_by_id, created_at], map: "idx_collection_jobs_requester_created_at")
+  @@map("collection_jobs")
+}
+
+model DataSourceCollectionJob {
+  data_source_id    String   @db.Uuid
+  collection_job_id String   @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz
+
+  data_source    DataSource    @relation(fields: [data_source_id], references: [id], onDelete: Restrict)
+  collection_job CollectionJob @relation(fields: [collection_job_id], references: [id], onDelete: Cascade)
+
+  @@id([data_source_id, collection_job_id])
+  @@index([collection_job_id], map: "idx_data_source_collection_jobs_job")
+  @@map("data_source_collection_jobs")
+}
+
+model CompanySourceEvidence {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id        String   @db.Uuid
+  data_source_id    String   @db.Uuid
+  collection_job_id String   @db.Uuid
+  field_name        String   @db.VarChar(100)
+  field_value       String?  @db.VarChar(1000)
+  reference_label   String?  @db.VarChar(255)
+  collected_at      DateTime @default(now()) @db.Timestamptz
+
+  company        Company       @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  data_source    DataSource    @relation(fields: [data_source_id], references: [id], onDelete: Restrict)
+  collection_job CollectionJob @relation(fields: [collection_job_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, collected_at], map: "idx_company_source_evidence_company_collected_at")
+  @@index([collection_job_id], map: "idx_company_source_evidence_job")
+  @@map("company_source_evidence")
+}
+
+model CompanyHistory {
+  id         String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id String               @db.Uuid
+  actor_id   String?              @db.Uuid
+  action     CompanyHistoryAction
+  summary    String               @db.VarChar(500)
+  details    Json?
+  created_at DateTime             @default(now()) @db.Timestamptz
+
+  company Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  actor   Account? @relation("CompanyHistoryActor", fields: [actor_id], references: [id], onDelete: SetNull)
+
+  @@index([company_id, created_at], map: "idx_company_history_company_created_at")
+  @@map("company_history")
+}
+
+model ProspectingCriteria {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id     String   @unique @db.Uuid
+  sector         String?  @db.VarChar(120)
+  governorate    String?  @db.VarChar(60)
+  employee_range String?  @db.VarChar(40)
+  query          String?  @db.VarChar(255)
+  created_at     DateTime @default(now()) @db.Timestamptz
+  updated_at     DateTime @updatedAt @db.Timestamptz
+
+  account Account @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@map("prospecting_criteria")
+}
+
+model ProspectingRun {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requested_by_id  String               @db.Uuid
+  status           ProspectingRunStatus @default(RUNNING)
+  criteria         Json?
+  discovered_count Int                  @default(0)
+  qualified_count  Int                  @default(0)
+  failure_message  String?              @db.VarChar(1000)
+  created_at       DateTime             @default(now()) @db.Timestamptz
+  completed_at     DateTime?            @db.Timestamptz
+
+  requested_by Account            @relation("ProspectingRunRequester", fields: [requested_by_id], references: [id], onDelete: Cascade)
+  entries      ProspectingEntry[]
+
+  @@index([requested_by_id, created_at])
+  @@index([status, created_at])
+  @@map("prospecting_runs")
+}
+
+model ProspectingEntry {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id     String                 @db.Uuid
+  added_by_id    String                 @db.Uuid
+  run_id         String?                @db.Uuid
+  status         ProspectingEntryStatus @default(SURFACED)
+  score_snapshot Int?                   @db.SmallInt
+  recommendation String?                @db.VarChar(1000)
+  created_at     DateTime               @default(now()) @db.Timestamptz
+  updated_at     DateTime               @updatedAt @db.Timestamptz
+  removed_at     DateTime?              @db.Timestamptz
+
+  company  Company         @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  added_by Account         @relation("ProspectingEntryActor", fields: [added_by_id], references: [id], onDelete: Cascade)
+  run      ProspectingRun? @relation(fields: [run_id], references: [id], onDelete: SetNull)
+
+  @@unique([company_id, added_by_id])
+  @@index([added_by_id, status, updated_at])
+  @@index([run_id])
+  @@map("prospecting_entries")
+}
+
+model Assignment {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id          String             @db.Uuid
+  manager_id          String             @db.Uuid
+  agent_id            String             @db.Uuid
+  scheduled_at        DateTime           @db.Timestamptz
+  duration_minutes    Int                @default(60) @db.SmallInt
+  visit_type          VisitType          @default(FIRST_VISIT)
+  priority            AssignmentPriority @default(MEDIUM)
+  objectives          String?
+  /// "Recevez un rappel 1 jour avant la visite."
+  reminder_enabled    Boolean            @default(true)
+  status              AssignmentStatus   @default(PENDING)
+  cancellation_reason String?
+  completed_at        DateTime?          @db.Timestamptz
+  created_at          DateTime           @default(now()) @db.Timestamptz
+  updated_at          DateTime           @updatedAt @db.Timestamptz
+
+  company     Company      @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  manager     Account      @relation("AssignmentManager", fields: [manager_id], references: [id])
+  agent       Account      @relation("AssignmentAgent", fields: [agent_id], references: [id])
+  prospection Prospection?
+
+  @@index([manager_id, status])
+  @@index([agent_id, scheduled_at])
+  @@index([company_id, scheduled_at])
+  @@map("assignments")
+}
+
+model Prospection {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assignment_id String            @unique @db.Uuid
+  company_id    String            @db.Uuid
+  manager_id    String            @db.Uuid
+  agent_id      String            @db.Uuid
+  status        ProspectionStatus @default(PLANNED)
+  notes         String?
+  next_action   String?           @db.VarChar(1000)
+  follow_up_at  DateTime?         @db.Timestamptz
+  started_at    DateTime?         @db.Timestamptz
+  visited_at    DateTime?         @db.Timestamptz
+  completed_at  DateTime?         @db.Timestamptz
+  created_at    DateTime          @default(now()) @db.Timestamptz
+  updated_at    DateTime          @updatedAt @db.Timestamptz
+
+  assignment Assignment   @relation(fields: [assignment_id], references: [id], onDelete: Cascade)
+  company    Company      @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  manager    Account      @relation("ProspectionManager", fields: [manager_id], references: [id])
+  agent      Account      @relation("ProspectionAgent", fields: [agent_id], references: [id])
+  report     FieldReport?
+
+  @@index([manager_id, status, updated_at])
+  @@index([agent_id, status, updated_at])
+  @@index([company_id, updated_at])
+  @@map("prospections")
+}
+
+model FieldReport {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  prospection_id   String    @unique @db.Uuid
+  created_by_id    String    @db.Uuid
+  original_payload Json
+  summary          String
+  needs            String
+  outcome          String
+  objections       String?
+  suggested_offer  String?
+  next_action      String?   @db.VarChar(1000)
+  follow_up_at     DateTime? @db.Timestamptz
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @updatedAt @db.Timestamptz
+
+  prospection Prospection             @relation(fields: [prospection_id], references: [id], onDelete: Cascade)
+  created_by  Account                 @relation("FieldReportCreator", fields: [created_by_id], references: [id])
+  processing  ReportProcessingResult?
+
+  @@index([created_by_id, created_at])
+  @@map("field_reports")
+}
+
+model ReportProcessingResult {
+  id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_report_id  String                 @unique @db.Uuid
+  status           ReportProcessingStatus @default(PENDING)
+  customer_context String?
+  structured_needs String?
+  objections       String?
+  suggested_offer  String?
+  visit_outcome    String?
+  next_action      String?                @db.VarChar(1000)
+  follow_up_at     DateTime?              @db.Timestamptz
+  verdict          ReportVerdict?
+  reasons          String?
+  failure_message  String?                @db.VarChar(1000)
+  processed_at     DateTime?              @db.Timestamptz
+  created_at       DateTime               @default(now()) @db.Timestamptz
+  updated_at       DateTime               @updatedAt @db.Timestamptz
+
+  field_report FieldReport @relation(fields: [field_report_id], references: [id], onDelete: Cascade)
+
+  @@map("report_processing_results")
+}
+
+model ProspectingMeeting {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id          String        @db.Uuid
+  manager_id          String        @db.Uuid
+  agent_id            String        @db.Uuid
+  title               String        @db.VarChar(160)
+  agenda              String?
+  location            String?       @db.VarChar(255)
+  meeting_url         String?       @db.VarChar(2048)
+  scheduled_at        DateTime      @db.Timestamptz
+  duration_minutes    Int           @db.SmallInt
+  visit_type          VisitType     @default(FIRST_VISIT)
+  /// "Recevez un rappel 1 jour avant la visite."
+  reminder_enabled    Boolean       @default(true)
+  status              MeetingStatus @default(SCHEDULED)
+  outcome             String?
+  completion_notes    String?
+  cancellation_reason String?
+  completed_at        DateTime?     @db.Timestamptz
+  created_at          DateTime      @default(now()) @db.Timestamptz
+  updated_at          DateTime      @updatedAt @db.Timestamptz
+
+  company Company      @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  manager Account      @relation("MeetingManager", fields: [manager_id], references: [id])
+  agent   Account      @relation("MeetingAgent", fields: [agent_id], references: [id])
+  report  VisitReport?
+  tickets Ticket[]
+
+  @@index([manager_id, scheduled_at])
+  @@index([agent_id, scheduled_at])
+  @@index([company_id, scheduled_at])
+  @@index([status, scheduled_at])
+  @@map("prospecting_meetings")
+}
+
+enum VisitReportStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  VALIDATED
+}
+
+enum VisitReportNeed {
+  CONNECTIVITY
+  CLOUD
+  SECURITY
+  SD_WAN
+  OTHER
+}
+
+enum VisitReportSolution {
+  ORANGE_BUSINESS_VPN
+  FLEXIBLE_ENGINE_CLOUD
+  ORANGE_CYBERDEFENSE
+  OTHER
+}
+
+enum VisitReportInterestLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum VisitReportOutcome {
+  INTERESTED
+  TO_FOLLOW_UP
+  NEGOTIATION
+  OPPORTUNITY_WON
+  OPPORTUNITY_LOST
+  NOT_INTERESTED
+}
+
+model VisitReport {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meeting_id     String                    @unique @db.Uuid
+  status         VisitReportStatus         @default(DRAFT)
+  summary        String?
+  needs          VisitReportNeed[]         @default([])
+  solutions      VisitReportSolution[]     @default([])
+  interest_level VisitReportInterestLevel?
+  outcome_result VisitReportOutcome?
+  submitted_at   DateTime?                 @db.Timestamptz
+  created_at     DateTime                  @default(now()) @db.Timestamptz
+  updated_at     DateTime                  @updatedAt @db.Timestamptz
+
+  meeting     ProspectingMeeting      @relation(fields: [meeting_id], references: [id], onDelete: Cascade)
+  attachments VisitReportAttachment[]
+  notes       VisitReportNote[]
+
+  @@index([status])
+  @@map("visit_reports")
+}
+
+model VisitReportAttachment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id  String   @db.Uuid
+  file_name  String   @db.VarChar(255)
+  file_mime  String   @db.VarChar(120)
+  file_data  Bytes
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  report VisitReport @relation(fields: [report_id], references: [id], onDelete: Cascade)
+
+  @@index([report_id])
+  @@map("visit_report_attachments")
+}
+
+model VisitReportNote {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id  String   @db.Uuid
+  author_id  String   @db.Uuid
+  body       String
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  report VisitReport @relation(fields: [report_id], references: [id], onDelete: Cascade)
+  author Account     @relation("VisitReportNoteAuthor", fields: [author_id], references: [id])
+
+  @@index([report_id, created_at])
+  @@map("visit_report_notes")
+}
+
+model Ticket {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  number             Int            @default(autoincrement())
+  type               TicketType
+  subject            String         @db.VarChar(160)
+  description        String
+  priority           TicketPriority @default(MEDIUM)
+  status             TicketStatus   @default(NEW)
+  attachment_name    String?        @db.VarChar(255)
+  attachment_mime    String?        @db.VarChar(120)
+  attachment_data    Bytes?
+  created_by_id      String         @db.Uuid
+  assigned_to_id     String?        @db.Uuid
+  /// Optional link to the company or visit the ticket is about.
+  related_company_id String?        @db.Uuid
+  related_meeting_id String?        @db.Uuid
+  resolved_at        DateTime?      @db.Timestamptz
+  created_at         DateTime       @default(now()) @db.Timestamptz
+  updated_at         DateTime       @updatedAt @db.Timestamptz
+
+  created_by      Account             @relation("TicketCreatedBy", fields: [created_by_id], references: [id])
+  assigned_to     Account?            @relation("TicketAssignee", fields: [assigned_to_id], references: [id])
+  related_company Company?            @relation(fields: [related_company_id], references: [id], onDelete: SetNull)
+  related_meeting ProspectingMeeting? @relation(fields: [related_meeting_id], references: [id], onDelete: SetNull)
+  replies         TicketReply[]
+
+  @@index([status])
+  @@index([created_by_id])
+  @@index([assigned_to_id])
+  @@index([related_company_id])
+  @@index([created_at])
+  @@map("tickets")
+}
+
+model TicketReply {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticket_id  String   @db.Uuid
+  author_id  String   @db.Uuid
+  message    String
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  ticket Ticket  @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  author Account @relation("TicketReplyAuthor", fields: [author_id], references: [id])
+
+  @@index([ticket_id, created_at])
+  @@map("ticket_replies")
+}
+
+model Superadmin {
+  id                      String           @id @db.Uuid
+  email                   String           @unique @db.VarChar(255)
+  password_hash           String           @db.VarChar(255)
+  first_name              String           @db.VarChar(100)
+  last_name               String           @db.VarChar(100)
+  phone                   String?          @db.VarChar(30)
+  status                  SuperadminStatus @default(PENDING)
+  failed_login_attempts   Int              @default(0) @db.SmallInt
+  locked_until            DateTime?        @db.Timestamptz
+  mfa_secret              String?          @db.VarChar(255)
+  mfa_type                MfaType?
+  avatar_mime             String?          @db.VarChar(120)
+  avatar_data             Bytes?
+  notify_analysis_results Boolean          @default(true)
+  notify_work_updates     Boolean          @default(true)
+  email_opt_outs          String[]         @default([])
+  /// Language of emails and notifications ("fr" or "en").
+  locale                  String           @default("fr") @db.VarChar(5)
+  latest_login            DateTime?        @db.Timestamptz
+  created_at              DateTime         @default(now()) @db.Timestamptz
+  updated_at              DateTime         @default(now()) @updatedAt @db.Timestamptz
+
+  account Account @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  @@index([email], map: "idx_superadmins_email")
+  @@map("superadmins")
+}
+
+model Session {
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id                  String    @db.Uuid
+  refresh_token_hash          String    @unique
+  previous_refresh_token_hash String?   @unique
+  previous_token_expires_at   DateTime? @db.Timestamptz
+  ip_address                  String?   @db.VarChar(45)
+  last_active                 DateTime  @default(now()) @db.Timestamptz
+  created_at                  DateTime  @default(now()) @db.Timestamptz
+
+  account            Account  @relation("AccountSessions", fields: [account_id], references: [id], onDelete: Cascade)
+  active_for_account Account? @relation("ActiveSession")
+
+  @@index([account_id], map: "idx_sessions_account_id")
+  @@map("sessions")
+}
+
+model ConnectionEvent {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id String           @db.Uuid
+  ip_address String?          @db.VarChar(45)
+  user_agent String?
+  status     ConnectionStatus
+  created_at DateTime         @default(now()) @db.Timestamptz
+
+  account Account @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@index([account_id, created_at], map: "idx_connection_events_account_id_created_at")
+  @@map("connection_events")
+}
+
+model MfaCode {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id String   @db.Uuid
+  code_hash  String
+  method     MfaType
+  expires_at DateTime @db.Timestamptz
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  account Account @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@index([account_id], map: "idx_mfa_codes_account_id")
+  @@map("mfa_codes")
+}
+
+model PasswordResetCode {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id String    @db.Uuid
+  code_hash  String
+  attempts   Int       @default(0)
+  expires_at DateTime  @db.Timestamptz
+  used_at    DateTime? @db.Timestamptz
+  created_at DateTime  @default(now()) @db.Timestamptz
+
+  account Account @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@index([account_id], map: "idx_password_reset_codes_account_id")
+  @@index([expires_at], map: "idx_password_reset_codes_expires_at")
+  @@map("password_reset_codes")
+}
+
+enum TokenType {
+  MFA
+  PASSWORD_RESET
+  INVITE
+}
+
+model Token {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  token_type TokenType
+  token_hash String    @unique @db.VarChar(64)
+  expires_at DateTime  @db.Timestamptz
+  used_at    DateTime? @db.Timestamptz
+  created_at DateTime  @default(now()) @db.Timestamptz
+
+  invite_token InviteToken?
+
+  @@index([expires_at], map: "idx_tokens_expires_at")
+  @@index([token_type], map: "idx_tokens_type")
+  @@map("tokens")
+}
+
+model InviteToken {
+  id             String   @id @db.Uuid
+  invited_email  String   @db.VarChar(255)
+  account_id     String?  @db.Uuid
+  invited_by_id  String   @db.Uuid
+  role_to_assign UserRole
+  attempts       Int      @default(0) @db.SmallInt
+
+  token      Token    @relation(fields: [id], references: [id], onDelete: Cascade)
+  account    Account? @relation("InviteRecipient", fields: [account_id], references: [id], onDelete: SetNull)
+  invited_by Account  @relation("InviteSender", fields: [invited_by_id], references: [id], onDelete: Cascade)
+
+  @@index([invited_email], map: "idx_invite_tokens_invited_email")
+  @@index([invited_by_id], map: "idx_invite_tokens_invited_by_id")
+  @@map("invite_tokens")
+}
+
+enum DevicePlatform {
+  WEB
+  ANDROID
+  IOS
+}
+
+/// Firebase Cloud Messaging registration token of one browser or phone.
+model DeviceToken {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id   String         @db.Uuid
+  token        String         @unique @db.VarChar(4096)
+  platform     DevicePlatform
+  user_agent   String?        @db.VarChar(500)
+  last_seen_at DateTime       @default(now()) @db.Timestamptz
+  created_at   DateTime       @default(now()) @db.Timestamptz
+
+  account Account @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@index([account_id])
+  @@map("device_tokens")
+}
+
+/// In-app notification shown in the bell. Push only alerts about it.
+model Notification {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id  String    @db.Uuid
+  type        String    @db.VarChar(60)
+  title       String    @db.VarChar(200)
+  body        String    @db.VarChar(1000)
+  link        String?   @db.VarChar(500)
+  /// What the notification is about, so apps can open that exact item.
+  entity_type String?   @db.VarChar(30)
+  entity_id   String?   @db.Uuid
+  read_at     DateTime? @db.Timestamptz
+  created_at  DateTime  @default(now()) @db.Timestamptz
+
+  account Account @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@index([account_id, created_at(sort: Desc)])
+  @@index([account_id, read_at])
+  @@map("notifications")
+}
+
+/// One row per scheduled notification already sent, so each reminder goes out once.
+/// occurrence identifies the run, e.g. the visit date for a reminder.
+model ScheduledNotificationLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind       String   @db.VarChar(40)
+  entity_id  String   @db.Uuid
+  account_id String   @db.Uuid
+  occurrence String   @db.VarChar(60)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@unique([kind, entity_id, account_id, occurrence])
+  @@index([created_at])
+  @@map("scheduled_notification_log")
+}

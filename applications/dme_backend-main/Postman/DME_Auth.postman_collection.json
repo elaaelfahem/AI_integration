@@ -1,0 +1,735 @@
+{
+  "info": {
+    "name": "DME Backend - Auth",
+    "description": "All current endpoints: login, first-time password setup, password reset, MFA (SMS/Email code + TOTP), and session refresh/touch/logout. Run requests top-to-bottom inside a folder — variables (setupToken, mfaToken, resetToken, accessToken) are captured automatically by each request's Tests script.\n\nBefore using: start the backend (npm run start:dev in dme_backend) and make sure Mailpit is running so you can read emailed codes at http://localhost:8025.\n\nPostman must have cookies enabled for localhost (default) since /refresh, /touch and /logout rely on the httpOnly refresh cookie set by /login, /password/setup, /mfa/verify or /mfa/totp/confirm.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001" },
+    { "key": "email", "value": "admin123@example.com" },
+    { "key": "password", "value": "SecurePassword123!" },
+    { "key": "setupToken", "value": "" },
+    { "key": "mfaToken", "value": "" },
+    { "key": "resetToken", "value": "" },
+    { "key": "accessToken", "value": "" },
+    { "key": "mfaCode", "value": "123456" },
+    { "key": "resetCode", "value": "123456" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET / (hello)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/", "host": ["{{baseUrl}}"], "path": [""] }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"status\": \"ok\",\n  \"timestamp\": \"2026-07-28T12:00:00.000Z\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.passwordSetupRequired) {",
+                  "    pm.collectionVariables.set('setupToken', body.setupToken);",
+                  "} else if (body.mfaRequired) {",
+                  "    pm.collectionVariables.set('mfaToken', body.mfaToken);",
+                  "    console.log('mfaType currently on account:', body.mfaType);",
+                  "} else if (body.accessToken) {",
+                  "    pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] },
+            "description": "Pending accounts (first login ever) get back a setupToken — continue with Password - Setup. Accounts that require MFA get a mfaToken + mfaType instead of a session — continue with MFA - Request code. Otherwise returns accessToken directly plus a refresh cookie."
+          },
+          "response": [
+            {
+              "name": "200 - password setup required (pending account)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"new.manager@example.com\",\n  \"password\": \"anything\"\n}" },
+                "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"passwordSetupRequired\": true,\n  \"setupToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"email\": \"new.manager@example.com\",\n  \"firstName\": \"New\"\n}"
+            },
+            {
+              "name": "200 - MFA required",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin123@example.com\",\n  \"password\": \"SecurePassword123!\"\n}" },
+                "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"mfaRequired\": true,\n  \"mfaToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"mfaType\": \"AUTH\",\n  \"email\": \"admin123@example.com\",\n  \"phone\": \"+216 XX XXX 56\"\n}"
+            },
+            {
+              "name": "200 - direct session (no MFA)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"manager@example.com\",\n  \"password\": \"Password123!\"\n}" },
+                "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"mfaRequired\": false,\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"expiresIn\": 300,\n  \"lastActive\": \"2026-07-28T12:00:00.000Z\",\n  \"idleExpiresInMs\": 900000,\n  \"touchIntervalMs\": 60000,\n  \"account\": {\n    \"id\": \"...\",\n    \"email\": \"manager@example.com\",\n    \"role\": \"MANAGER\",\n    \"firstName\": \"...\",\n    \"lastName\": \"...\"\n  }\n}"
+            },
+            {
+              "name": "401 - invalid credentials",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin123@example.com\",\n  \"password\": \"wrong\"\n}" },
+                "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Invalid email or password\",\n  \"error\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+            }
+          ]
+        },
+        {
+          "name": "Refresh",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) {",
+                  "    pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "raw", "raw": "" },
+            "url": { "raw": "{{baseUrl}}/refresh", "host": ["{{baseUrl}}"], "path": ["refresh"] },
+            "description": "No body needed — relies on the httpOnly refresh cookie set by a prior login/setup/verify/confirm response. Requires Postman's cookie jar to be active for localhost."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/refresh", "host": ["{{baseUrl}}"], "path": ["refresh"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"expiresIn\": 300,\n  \"lastActive\": \"2026-07-28T13:02:00.847Z\",\n  \"idleExpiresInMs\": 900000,\n  \"touchIntervalMs\": 60000\n}"
+            },
+            {
+              "name": "401 - missing/expired session",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/refresh", "host": ["{{baseUrl}}"], "path": ["refresh"] }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"A valid refresh token is required\",\n  \"error\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+            }
+          ]
+        },
+        {
+          "name": "Touch",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "" },
+            "url": { "raw": "{{baseUrl}}/touch", "host": ["{{baseUrl}}"], "path": ["touch"] },
+            "description": "Records activity for the active session. Requires the access token AND the refresh cookie from a prior login/verify/confirm."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIs..." }],
+                "url": { "raw": "{{baseUrl}}/touch", "host": ["{{baseUrl}}"], "path": ["touch"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"updated\": true,\n  \"lastActive\": \"2026-07-28T13:05:00.000Z\",\n  \"idleExpiresInMs\": 900000,\n  \"touchIntervalMs\": 60000\n}"
+            },
+            {
+              "name": "401 - missing/expired session",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Authorization", "value": "Bearer invalid" }],
+                "url": { "raw": "{{baseUrl}}/touch", "host": ["{{baseUrl}}"], "path": ["touch"] }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 204) {",
+                  "    pm.collectionVariables.set('accessToken', '');",
+                  "    pm.collectionVariables.set('mfaToken', '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "" },
+            "url": { "raw": "{{baseUrl}}/logout", "host": ["{{baseUrl}}"], "path": ["logout"] },
+            "description": "Removes the active session and clears the refresh cookie. Returns 204 No Content on success."
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIs..." }],
+                "url": { "raw": "{{baseUrl}}/logout", "host": ["{{baseUrl}}"], "path": ["logout"] }
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": ""
+            },
+            {
+              "name": "401 - missing/expired access token",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Authorization", "value": "Bearer invalid" }],
+                "url": { "raw": "{{baseUrl}}/logout", "host": ["{{baseUrl}}"], "path": ["logout"] }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Password",
+      "item": [
+        {
+          "name": "Setup - First password (pending account)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.mfaRequired) {",
+                  "    pm.collectionVariables.set('mfaToken', body.mfaToken);",
+                  "} else if (body.accessToken) {",
+                  "    pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"setupToken\": \"{{setupToken}}\",\n  \"password\": \"SecurePassword123!\",\n  \"confirmPassword\": \"SecurePassword123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/password/setup", "host": ["{{baseUrl}}"], "path": ["password", "setup"] },
+            "description": "setupToken comes from Login's passwordSetupRequired response. Password needs upper+lower+digit+special char, 8-128 chars. Activates the account and continues through the normal login result (MFA challenge or direct session)."
+          },
+          "response": [
+            {
+              "name": "200 - direct session",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"setupToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"password\": \"SecurePassword123!\",\n  \"confirmPassword\": \"SecurePassword123!\"\n}" },
+                "url": { "raw": "{{baseUrl}}/password/setup", "host": ["{{baseUrl}}"], "path": ["password", "setup"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"mfaRequired\": false,\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"expiresIn\": 300,\n  \"lastActive\": \"2026-07-28T12:00:00.000Z\",\n  \"idleExpiresInMs\": 900000,\n  \"touchIntervalMs\": 60000,\n  \"account\": {\n    \"id\": \"...\",\n    \"email\": \"new.manager@example.com\",\n    \"role\": \"MANAGER\",\n    \"firstName\": \"New\",\n    \"lastName\": \"...\"\n  }\n}"
+            },
+            {
+              "name": "400 - passwords do not match",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"setupToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"password\": \"SecurePassword123!\",\n  \"confirmPassword\": \"Different123!\"\n}" },
+                "url": { "raw": "{{baseUrl}}/password/setup", "host": ["{{baseUrl}}"], "path": ["password", "setup"] }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Passwords do not match\",\n  \"error\": \"Bad Request\",\n  \"statusCode\": 400\n}"
+            },
+            {
+              "name": "401 - invalid/expired setup token",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"setupToken\": \"expired-or-bad-token\",\n  \"password\": \"SecurePassword123!\",\n  \"confirmPassword\": \"SecurePassword123!\"\n}" },
+                "url": { "raw": "{{baseUrl}}/password/setup", "host": ["{{baseUrl}}"], "path": ["password", "setup"] }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"The password setup session is invalid\",\n  \"error\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+            }
+          ]
+        },
+        {
+          "name": "Reset - Request code",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/password/reset/request", "host": ["{{baseUrl}}"], "path": ["password", "reset", "request"] },
+            "description": "Always returns { sent: true } for unknown emails (no account enumeration). Active accounts get a 6-digit code by email — check Mailpit at http://localhost:8025 and paste it into the resetCode variable."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin123@example.com\"\n}" },
+                "url": { "raw": "{{baseUrl}}/password/reset/request", "host": ["{{baseUrl}}"], "path": ["password", "reset", "request"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"sent\": true\n}"
+            },
+            {
+              "name": "403 - account not active",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"pending.user@example.com\"\n}" },
+                "url": { "raw": "{{baseUrl}}/password/reset/request", "host": ["{{baseUrl}}"], "path": ["password", "reset", "request"] }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Password reset is only available for active accounts\",\n  \"error\": \"Forbidden\",\n  \"statusCode\": 403\n}"
+            }
+          ]
+        },
+        {
+          "name": "Reset - Verify code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.resetToken) {",
+                  "    pm.collectionVariables.set('resetToken', body.resetToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"code\": \"{{resetCode}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/password/reset/verify", "host": ["{{baseUrl}}"], "path": ["password", "reset", "verify"] },
+            "description": "code is the 6-digit code emailed by Reset - Request code. Returns a short-lived resetToken for the final Reset - Confirm step."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin123@example.com\",\n  \"code\": \"582034\"\n}" },
+                "url": { "raw": "{{baseUrl}}/password/reset/verify", "host": ["{{baseUrl}}"], "path": ["password", "reset", "verify"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"resetToken\": \"eyJhbGciOiJIUzI1NiIs...\"\n}"
+            },
+            {
+              "name": "401 - invalid/expired/over-attempted code",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin123@example.com\",\n  \"code\": \"000000\"\n}" },
+                "url": { "raw": "{{baseUrl}}/password/reset/verify", "host": ["{{baseUrl}}"], "path": ["password", "reset", "verify"] }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"The password reset code is invalid\",\n  \"error\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+            }
+          ]
+        },
+        {
+          "name": "Reset - Confirm new password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resetToken\": \"{{resetToken}}\",\n  \"password\": \"NewSecurePassword123!\",\n  \"confirmPassword\": \"NewSecurePassword123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/password/reset/confirm", "host": ["{{baseUrl}}"], "path": ["password", "reset", "confirm"] },
+            "description": "Consumes resetToken from Reset - Verify code, sets the new password, and removes any active sessions for the account (forces re-login everywhere)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"resetToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"password\": \"NewSecurePassword123!\",\n  \"confirmPassword\": \"NewSecurePassword123!\"\n}" },
+                "url": { "raw": "{{baseUrl}}/password/reset/confirm", "host": ["{{baseUrl}}"], "path": ["password", "reset", "confirm"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"reset\": true\n}"
+            },
+            {
+              "name": "400 - passwords do not match",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"resetToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"password\": \"NewSecurePassword123!\",\n  \"confirmPassword\": \"Different123!\"\n}" },
+                "url": { "raw": "{{baseUrl}}/password/reset/confirm", "host": ["{{baseUrl}}"], "path": ["password", "reset", "confirm"] }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Passwords do not match\",\n  \"error\": \"Bad Request\",\n  \"statusCode\": 400\n}"
+            },
+            {
+              "name": "401 - invalid/expired reset token",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"resetToken\": \"expired-or-bad-token\",\n  \"password\": \"NewSecurePassword123!\",\n  \"confirmPassword\": \"NewSecurePassword123!\"\n}" },
+                "url": { "raw": "{{baseUrl}}/password/reset/confirm", "host": ["{{baseUrl}}"], "path": ["password", "reset", "confirm"] }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MFA",
+      "item": [
+        {
+          "name": "Request code (SMS/Email)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mfaToken\": \"{{mfaToken}}\",\n  \"method\": \"EMAIL\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/mfa/request", "host": ["{{baseUrl}}"], "path": ["mfa", "request"] },
+            "description": "method is 'EMAIL' or 'SMS' (AUTH is rejected here, use MFA - TOTP setup instead). Both SMS and EMAIL are delivered via email for now — check Mailpit at http://localhost:8025. Copy the 6-digit code into the mfaCode variable, then call MFA - Verify code."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"mfaToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"method\": \"EMAIL\"\n}" },
+                "url": { "raw": "{{baseUrl}}/mfa/request", "host": ["{{baseUrl}}"], "path": ["mfa", "request"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"sent\": true,\n  \"mfaType\": \"EMAIL\",\n  \"expiresInSeconds\": 300\n}"
+            },
+            {
+              "name": "401 - invalid/expired challenge token",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"mfaToken\": \"expired-or-bad-token\",\n  \"method\": \"EMAIL\"\n}" },
+                "url": { "raw": "{{baseUrl}}/mfa/request", "host": ["{{baseUrl}}"], "path": ["mfa", "request"] }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"The verification session is invalid\",\n  \"error\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+            }
+          ]
+        },
+        {
+          "name": "Verify code (SMS/Email)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) {",
+                  "    pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mfaToken\": \"{{mfaToken}}\",\n  \"code\": \"{{mfaCode}}\",\n  \"method\": \"EMAIL\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/mfa/verify", "host": ["{{baseUrl}}"], "path": ["mfa", "verify"] },
+            "description": "method must match whatever you requested in MFA - Request code (it's what the backend uses to decide whether to check a TOTP code or the emailed code — omitting it falls back to the account's currently persisted method). Pull the real code from Mailpit (http://localhost:8025) and paste it into the mfaCode variable before sending."
+          },
+          "response": [
+            {
+              "name": "200 OK - session established",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"mfaToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"code\": \"439340\",\n  \"method\": \"EMAIL\"\n}" },
+                "url": { "raw": "{{baseUrl}}/mfa/verify", "host": ["{{baseUrl}}"], "path": ["mfa", "verify"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"mfaRequired\": false,\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"expiresIn\": 300,\n  \"lastActive\": \"2026-07-28T13:02:00.847Z\",\n  \"idleExpiresInMs\": 900000,\n  \"touchIntervalMs\": 60000,\n  \"account\": {\n    \"id\": \"e813cf82-1e60-4bfd-9a63-9b3238fd015a\",\n    \"email\": \"admin123@example.com\",\n    \"role\": \"SUPERADMIN\",\n    \"firstName\": \"Super\",\n    \"lastName\": \"Admin\"\n  }\n}"
+            },
+            {
+              "name": "401 - invalid code",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"mfaToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"code\": \"000000\",\n  \"method\": \"EMAIL\"\n}" },
+                "url": { "raw": "{{baseUrl}}/mfa/verify", "host": ["{{baseUrl}}"], "path": ["mfa", "verify"] }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Invalid verification code\",\n  \"error\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+            },
+            {
+              "name": "401 - expired code",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"mfaToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"code\": \"439340\",\n  \"method\": \"EMAIL\"\n}" },
+                "url": { "raw": "{{baseUrl}}/mfa/verify", "host": ["{{baseUrl}}"], "path": ["mfa", "verify"] }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"The code has expired. Request a new one.\",\n  \"error\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+            }
+          ]
+        },
+        {
+          "name": "TOTP setup (start authenticator enrollment)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mfaToken\": \"{{mfaToken}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/mfa/totp/setup", "host": ["{{baseUrl}}"], "path": ["mfa", "totp", "setup"] },
+            "description": "Generates a new TOTP secret + QR code data URL. Doesn't become the active method until confirmed. Use the returned 'secret' with an authenticator app (or a TOTP code generator) to get a code for MFA - TOTP confirm."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"mfaToken\": \"eyJhbGciOiJIUzI1NiIs...\"\n}" },
+                "url": { "raw": "{{baseUrl}}/mfa/totp/setup", "host": ["{{baseUrl}}"], "path": ["mfa", "totp", "setup"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"secret\": \"JBSWY3DPEHPK3PXP\",\n  \"otpauthUrl\": \"otpauth://totp/Orange%20DME:admin123%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Orange%20DME\",\n  \"qrCodeDataUrl\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "TOTP confirm",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) {",
+                  "    pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mfaToken\": \"{{mfaToken}}\",\n  \"code\": \"{{mfaCode}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/mfa/totp/confirm", "host": ["{{baseUrl}}"], "path": ["mfa", "totp", "confirm"] },
+            "description": "code is the current 6-digit TOTP from an authenticator app (or generated from the secret returned by MFA - TOTP setup). On success this also activates AUTH as the account's MFA method and establishes a session."
+          },
+          "response": [
+            {
+              "name": "200 OK - session established",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"mfaToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"code\": \"482913\"\n}" },
+                "url": { "raw": "{{baseUrl}}/mfa/totp/confirm", "host": ["{{baseUrl}}"], "path": ["mfa", "totp", "confirm"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"mfaRequired\": false,\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"expiresIn\": 300,\n  \"lastActive\": \"2026-07-28T13:02:00.847Z\",\n  \"idleExpiresInMs\": 900000,\n  \"touchIntervalMs\": 60000,\n  \"account\": {\n    \"id\": \"e813cf82-1e60-4bfd-9a63-9b3238fd015a\",\n    \"email\": \"admin123@example.com\",\n    \"role\": \"SUPERADMIN\",\n    \"firstName\": \"Super\",\n    \"lastName\": \"Admin\"\n  }\n}"
+            },
+            {
+              "name": "401 - invalid code",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"mfaToken\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"code\": \"000000\"\n}" },
+                "url": { "raw": "{{baseUrl}}/mfa/totp/confirm", "host": ["{{baseUrl}}"], "path": ["mfa", "totp", "confirm"] }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Invalid verification code\",\n  \"error\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

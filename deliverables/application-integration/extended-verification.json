@@ -1,0 +1,99 @@
+{
+  "date": "2026-10-13",
+  "backend_tests": "151 passed (23 suites)",
+  "frontend_tests": "12 passed (2 files)",
+  "typecheck": "backend and frontend tsc --noEmit clean",
+  "service_tests": "web search, search cache, local models, contacts, web qualification, empty campaign, company scoring, candidate normalizer, offer recommender, RNE validation: all PASS",
+  "full_workflow": {
+    "started_at": "2026-10-13T14:30:06.779Z",
+    "checks": {
+      "health_discovery": "PASS",
+      "health_rne": "PASS",
+      "health_website": "PASS",
+      "health_fact_extractor": "PASS",
+      "health_dme_assistant": "PASS",
+      "health_report_cleaner": "PASS",
+      "health_risk_detector": "PASS",
+      "campaign_end_to_end": "PASS",
+      "assistant_grounding": "PASS",
+      "assistant_review_gate": "PASS",
+      "report_evidence": "PASS",
+      "risk_allow_and_block": "PASS"
+    },
+    "completed_at": "2026-10-13T14:30:40.010Z",
+    "summary": {
+      "passed": 12,
+      "failed": 0,
+      "campaign_id": "acceptance-1791901806998",
+      "company_id": "cmp_1509317c",
+      "score": 54,
+      "category": "B",
+      "offers": [
+        "Broad Band",
+        "Bulk SMS",
+        "Data"
+      ]
+    }
+  },
+  "live_application": {
+    "anonymous_access": {
+      "companies": 401,
+      "prospecting": 401,
+      "assistant": 401
+    },
+    "manager_login": 200,
+    "agent_login": 200,
+    "agent_start_run_forbidden": 403,
+    "sector_runs_governorate_Tunis": "superseded by new_companies_per_search",
+    "assistant": {
+      "http": 201,
+      "ms": 9387,
+      "model_used": true,
+      "model": "llama3.2"
+    },
+    "run_history_by_status": {
+      "COMPLETED": 6,
+      "FAILED": 2
+    },
+    "frontend_pages": {
+      "/": 307,
+      "/login": 200,
+      "/prospection": 200,
+      "/dashboard": 200
+    }
+  },
+  "report_cleanup": "through the application as the agent: HTTP 201, model_used=true, original report text preserved",
+  "interrupted_runs": "0 RUNNING records; startup + periodic recovery for campaigns and collection jobs",
+  "database_migrations": {
+    "fresh_database": "28 migrations applied to an empty database, no schema difference (throwaway database, dropped afterwards)",
+    "local_database": "had no migration history (schema created outside migrations); schema matched with no drift, so all 28 were recorded as applied; migrate deploy now reports nothing pending"
+  },
+  "RNE": "Unchanged, not configured, as requested",
+  "limits": [
+    "Industry and health companies from the directory score 46 and stay below the qualification line: the scoring gives its 8-point activity bonus only to technology and finance wording",
+    "Generic web searches mostly return directory and list pages, which qualification rejects, so web search adds few companies",
+    "Brave search remains rate-limited; DuckDuckGo and Google CSE answered",
+    "B2B.tn itself was intermittently unreachable from this machine; searches now use the saved copy meanwhile",
+    "Browser click-through not done: no Chromium available and its download timed out",
+    "RNE unchanged, not configured",
+    "Production database not accessible from here: baseline its migration history before deploying if it was created outside migrations",
+    "Model may fall back to rules on timeout, invalid output or review gate",
+    "No push or public deployment"
+  ],
+  "new_companies_per_search": {
+    "change": "each search skips companies the user already holds; history lists the companies each search added; per-search cap 10; history shows the last 200 searches",
+    "live_check": "50 companies listed across history, 50 distinct, no duplicate names; exhausted criteria return NO_COMPANIES"
+  },
+  "fixes_second_pass": {
+    "company_names": "HTML entities decoded at the directory source; 2 stored names corrected",
+    "directory_reliability": "last good B2B.tn copy kept in memory and on a volume, warmed at start; directory search answered in 0.02 s right after a connector restart",
+    "web_search": "engine timeout raised from 3 s to 8 s and Mojeek enabled: 23-28 results per test query; planner now also queries web search when query budget remains (it previously issued one directory query only); a real company site (3S Tunisie) passed qualification in a direct check",
+    "scoring": "scoring recognises the same sector terms discovery uses, accent-insensitive (2 stored companies 34 -> 46); application thresholds aligned to the scoring bands: qualified 50, priority 75 (were 70 and 90)",
+    "result": "26 of the manager's 50 companies are qualified (all information-technology, score 54); dashboard aiProspects=26"
+  },
+  "flows_verified_via_api": [
+    "manager shortlists and assigns a company to an agent; agent sees the assignment",
+    "agent starts and completes a visit, saves a draft report, runs AI cleanup, submits; agent review is refused (403); manager validates",
+    "agent creates a ticket and reads it back; replies are administrator-only by design (403 for agent)"
+  ]
+}

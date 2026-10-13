@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+out/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing / coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+prisma/generated/
+
+# IDE / editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# OS files
+Thumbs.db
+
+# Package manager
+.npm/
+.yarn/
+.pnpm-store/
+*.tsbuildinfo
+
+# Debug / profiling
+*.heapsnapshot
+*.cpuprofile
+
+# Docker
+docker-compose.override.yml
+
+# Misc
+*.tgz
+.cache/
+tmp/
+temp/

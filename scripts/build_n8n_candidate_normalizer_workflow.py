@@ -98,5 +98,16 @@ workflow = {
     "tags": [],
 }
 
+qualification_node = {
+    "parameters": {"method": "POST", "url": "http://discovery-connector:8080/v1/qualify-discovery",
+        "sendBody": True, "specifyBody": "json", "jsonBody": "={{ $json }}", "options": {"timeout": 160000}},
+    "id": "c226d282-062d-4f72-a8bb-1418bb426920", "name": "Qualify Web Companies",
+    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [-420, -40],
+}
+workflow["nodes"].append(qualification_node)
+for source in ["Example Discovery Result", "Normalize Webhook Input"]:
+    workflow["connections"][source]["main"][0][0]["node"] = "Qualify Web Companies"
+workflow["connections"]["Qualify Web Companies"] = {"main": [[{"node": "Normalize and Deduplicate", "type": "main", "index": 0}]]}
+
 OUTPUT.write_text(json.dumps(workflow, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 print(OUTPUT)

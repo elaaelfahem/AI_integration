@@ -13,7 +13,7 @@ const post = (path, body, timeout) => json(`${base}:5678/webhook/${path}`, {
 }, timeout);
 
 const result = {started_at: new Date().toISOString(), checks: {}};
-for (const [name, port] of Object.entries({discovery:8080,rne:8081,website:8082,fact_extractor:8083,dme_assistant:8084,report_cleaner:8085,risk_detector:8086})) {
+for (const [name, port] of Object.entries({discovery:8080,rne:8081,website:8084,fact_extractor:8083,dme_assistant:8085,report_cleaner:8086,risk_detector:8087})) {
   const health = await json(`${base}:${port}/health`, {}, 15000);
   assert.ok(['ok', 'healthy'].includes(String(health.status).toLowerCase()), `${name} is unhealthy`);
   result.checks[`health_${name}`] = 'PASS';

@@ -13,9 +13,16 @@ HTTP status, payload, and SHA-256 checksum. It does not normalize or merge entit
 
 Start it with:
 
+From the repository root, start SearXNG first (see
+`deployment/searxng/README.md`), then run:
+
 ```bash
-docker compose up -d --build
+DISCOVERY_ENV_FILE=/absolute/path/to/existing/discovery_service/.env \
+  docker compose -f deployment/discovery-connector/docker-compose.yml up -d --build
 ```
+
+Keep the existing `DISCOVERY_ENV_FILE` value when recreating the container;
+omitting it mounts `/dev/null` and disables Google Maps credentials.
 
 Health check:
 

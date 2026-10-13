@@ -27,3 +27,11 @@ coverage/
 # Python cache
 __pycache__/
 *.py[cod]
+
+# Integrated application build outputs
+.next/
+dist/
+*.tsbuildinfo
+playwright-report/
+test-results/
+deployment/application/.local-access.md

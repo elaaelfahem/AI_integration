@@ -130,6 +130,21 @@ function titleFromHtml(html) {
   return match ? htmlText(match[1]).slice(0, 300) : '';
 }
 
+function organizationNames(html) {
+  const names = [];
+  function visit(value) {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(visit); return; }
+    const types = [].concat(value['@type'] || []);
+    if (types.some(t => ['Organization', 'Corporation', 'LocalBusiness', 'ProfessionalService'].includes(t)) && typeof value.name === 'string') names.push(value.name.slice(0, 100));
+    if (value['@graph']) visit(value['@graph']);
+  }
+  for (const match of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try { visit(JSON.parse(match[1])); } catch { /* Ignore invalid structured data. */ }
+  }
+  return [...new Set(names)].slice(0, 10);
+}
+
 function candidateLinks(html, pageUrl, host) {
   const preferred = /(?:about|a-propos|qui-sommes|contact|service|solution|produit|product|team|equipe|legal|mentions|company|entreprise)/i;
   const links = [];
@@ -207,10 +222,12 @@ async function collect(input) {
     warnings.push('robots.txt unavailable; collection limited to public same-domain pages');
   }
 
+  const requestedPages = Number(input.maximum_pages ?? maxPages);
+  const pageLimit = Number.isInteger(requestedPages) && requestedPages > 0 ? Math.min(requestedPages, maxPages) : maxPages;
   const queue = [homepage.toString()];
   const seen = new Set();
   const pages = [];
-  while (queue.length && pages.length < maxPages) {
+  while (queue.length && pages.length < pageLimit) {
     const url = queue.shift();
     if (seen.has(url)) continue;
     seen.add(url);
@@ -229,6 +246,7 @@ async function collect(input) {
       pages.push({
         source_url: page.url,
         title: titleFromHtml(page.body),
+        organization_names: organizationNames(page.body),
         text: content,
         retrieved_at: new Date().toISOString(),
         http_status: page.httpStatus,

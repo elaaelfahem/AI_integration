@@ -1,0 +1,16 @@
+Invitation à rejoindre la plateforme
+
+Bonjour,
+
+Vous avez été invité(e) à accéder à la plateforme Orange DME avec le rôle de {{roleLabel}}.
+
+Accepter l'invitation: {{invitationUrl}}
+Mot de passe temporaire: {{temporaryPassword}}
+
+Cette invitation est valable pendant {{expiresInMinutes}} minutes.
+Après expiration, une nouvelle invitation devra être demandée.
+
+Si vous n'êtes pas concerné(e) par cette invitation, vous pouvez ignorer cet e-mail.
+
+Cordialement,
+Equipe DME Orange.

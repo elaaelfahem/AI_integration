@@ -1,3 +1,4 @@
+import { contactsFromPage } from './contacts.mjs';
 import http from 'node:http';
 import { createHash } from 'node:crypto';
 
@@ -46,17 +47,11 @@ function evidenceFact(field, value, page, evidenceText, confidence = 0.98) {
 function deterministicFacts(pages) {
   const facts = [];
   for (const page of pages) {
+    for (const contact of contactsFromPage(page)) {
+      facts.push({ ...evidenceFact(contact.field, contact.value, page, contact.raw), contact_validation: contact.validation });
+    }
     for (const link of page.evidence_links ?? []) {
-      if (allowedFields.has(link.type) && text(link.value)) facts.push(evidenceFact(link.type, link.value, page, link.value));
-    }
-    for (const match of page.text.matchAll(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi)) {
-      facts.push(evidenceFact('email', match[0].toLocaleLowerCase(), page, match[0]));
-    }
-    for (const match of page.text.matchAll(/(?:\+216|00216)?[ .-]?(?:\d[ .-]?){8}\b/g)) {
-      const digits = match[0].replace(/\D/g, '').replace(/^00216/, '216');
-      if (digits.length === 8 || (digits.startsWith('216') && digits.length === 11)) {
-        facts.push(evidenceFact('phone', digits.length === 8 ? `+216${digits}` : `+${digits}`, page, match[0]));
-      }
+      if (!['email', 'phone'].includes(link.type) && allowedFields.has(link.type) && text(link.value)) facts.push(evidenceFact(link.type, link.value, page, link.value));
     }
     for (const match of page.text.matchAll(/(?:matricule\s+fiscal|identifiant\s+fiscal|registre\s+(?:de\s+)?commerce|RNE)\s*[:#-]?\s*([A-Z0-9][A-Z0-9/.-]{5,30})/gi)) {
       facts.push(evidenceFact('legal_identifier', match[1], page, match[0]));
@@ -139,6 +134,9 @@ function validateModelFacts(value, expected, pages) {
     if (!allowedFields.has(fact.field) || !text(fact.value_text) || !page) continue;
     if (!text(fact.evidence_text) || !page.text.includes(fact.evidence_text)) continue;
     if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1 || fact.inferred !== false) continue;
+    // Contact facts must come from the same deterministic, format-validated evidence path.
+    // A model cannot introduce a different number merely because a quote is present.
+    if (['phone', 'email'].includes(fact.field)) continue;
     facts.push({ ...fact, extractor_confidence: confidence, extraction_method: 'FLOWISE' });
   }
   return { summary: text(value.summary), facts, warnings: value.warnings.map(text).filter(Boolean) };

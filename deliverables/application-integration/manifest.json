@@ -1,0 +1,166 @@
+{
+  "dme_backend-main": {
+    "archive": "dme_backend-ai-integrated.zip",
+    "files": 217,
+    "changes": [
+      {
+        "path": ".env.example",
+        "change": "modified"
+      },
+      {
+        "path": "AI_INTEGRATION.md",
+        "change": "added"
+      },
+      {
+        "path": "src/main.ts",
+        "change": "modified"
+      },
+      {
+        "path": "src/data-sources/data-sources.module.ts",
+        "change": "modified"
+      },
+      {
+        "path": "src/data-sources/data-sources.service.spec.ts",
+        "change": "modified"
+      },
+      {
+        "path": "src/data-sources/data-sources.service.ts",
+        "change": "modified"
+      },
+      {
+        "path": "src/prospecting/prospecting.constants.ts",
+        "change": "modified"
+      },
+      {
+        "path": "src/prospecting/prospecting.controller.ts",
+        "change": "modified"
+      },
+      {
+        "path": "src/prospecting/prospecting.module.ts",
+        "change": "modified"
+      },
+      {
+        "path": "src/prospecting/prospecting.service.spec.ts",
+        "change": "added"
+      },
+      {
+        "path": "src/prospecting/prospecting.service.ts",
+        "change": "modified"
+      },
+      {
+        "path": "src/ai/ai.controller.spec.ts",
+        "change": "added"
+      },
+      {
+        "path": "src/ai/ai.controller.ts",
+        "change": "added"
+      },
+      {
+        "path": "src/ai/ai.module.ts",
+        "change": "added"
+      },
+      {
+        "path": "src/ai/ai.service.spec.ts",
+        "change": "added"
+      },
+      {
+        "path": "src/ai/ai.service.ts",
+        "change": "added"
+      },
+      {
+        "path": "prisma/schema.prisma",
+        "change": "modified"
+      },
+      {
+        "path": "prisma/migrations/20261013130000_restore_schema_fields/migration.sql",
+        "change": "added"
+      },
+      {
+        "path": "prisma/migrations/20260927120200_create_tickets/migration.sql",
+        "change": "added"
+      },
+      {
+        "path": "prisma/migrations/20261012140000_ai_company_context/migration.sql",
+        "change": "added"
+      },
+      {
+        "path": "scripts/check-collection-ai.cjs",
+        "change": "added"
+      },
+      {
+        "path": "scripts/check-live-ai.cjs",
+        "change": "added"
+      },
+      {
+        "path": "scripts/check-report-ai.cjs",
+        "change": "added"
+      },
+      {
+        "path": "scripts/seed-local.cjs",
+        "change": "added"
+      }
+    ]
+  },
+  "dme_frontend-main": {
+    "archive": "dme_frontend-ai-integrated.zip",
+    "files": 197,
+    "changes": [
+      {
+        "path": ".env.example",
+        "change": "added"
+      },
+      {
+        "path": ".gitignore",
+        "change": "modified"
+      },
+      {
+        "path": "AI_INTEGRATION.md",
+        "change": "added"
+      },
+      {
+        "path": "app/prospection/page.tsx",
+        "change": "modified"
+      },
+      {
+        "path": "lib/api.ts",
+        "change": "modified"
+      },
+      {
+        "path": "lib/i18n/messages/en.ts",
+        "change": "modified"
+      },
+      {
+        "path": "lib/i18n/messages/fr.ts",
+        "change": "modified"
+      },
+      {
+        "path": "lib/i18n/messages/types.ts",
+        "change": "modified"
+      },
+      {
+        "path": "types/auth.ts",
+        "change": "modified"
+      },
+      {
+        "path": "components/dashboard.tsx",
+        "change": "modified"
+      },
+      {
+        "path": "components/data-sources/data-source-management.tsx",
+        "change": "modified"
+      },
+      {
+        "path": "components/companies/company-ai-assistant.tsx",
+        "change": "added"
+      },
+      {
+        "path": "components/companies/company-details.tsx",
+        "change": "modified"
+      },
+      {
+        "path": "components/visit-reports/visit-report-drawer.tsx",
+        "change": "modified"
+      }
+    ]
+  }
+}

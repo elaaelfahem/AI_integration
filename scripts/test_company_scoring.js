@@ -21,4 +21,11 @@ assert(byId['nested-sector'].scoring.components.campaign_fit >= 20, 'Sector evid
 assert(byId.conflict.scoring.category === 'REVIEW', 'RNE conflict must be REVIEW');
 assert(!byId.conflict.scoring.ready_for_offer_recommendation, 'Conflict must not reach offers');
 assert(JSON.stringify(first) === JSON.stringify(second), 'Scores must be deterministic');
+const french = run({ campaign: { campaign_id: 'campaign-fr', sectors: ['santé'], locations: ['Tunis'] }, official_validation: { campaign_id: 'campaign-fr', companies: [
+  { company_id: 'medical', canonical_name: 'Sonomed', address: 'Tunis', phones: ['+21671948120'], source_ids: ['b2b_tn'], source_records: [{source_record_id:'s5', payload:{categories:["FABRICATION DE MATÉRIELS ET APPAREILS MÉDICAUX"]}}], ready_for_scoring: true, official_validation: {status:'SKIPPED_NO_IDENTIFIER'} },
+  { company_id: 'unrelated', canonical_name: 'Transport Express', address: 'Tunis', phones: ['+21671000001'], source_ids: ['b2b_tn'], source_records: [{source_record_id:'s6', payload:{categories:['TRANSPORT ROUTIER']}}], ready_for_scoring: true, official_validation: {status:'SKIPPED_NO_IDENTIFIER'} },
+]}});
+const frenchById = Object.fromEntries(french.companies.map((company) => [company.company_id, company]));
+assert(frenchById.medical.scoring.reasons.includes('Matches a campaign target sector'), 'Accented French sector must match directory categories found by discovery');
+assert(frenchById.unrelated.scoring.missing_data.includes('confirmed_target_sector'), 'Unrelated activity must not match the sector');
 console.log(JSON.stringify({status:first.status,categories:first.categories,scores:Object.fromEntries(first.companies.map((c)=>[c.company_id,c.scoring.total_score]))}, null, 2));

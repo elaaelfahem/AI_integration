@@ -234,5 +234,19 @@ workflow = {
     "tags": [],
 }
 
+# Empty discovery must terminate before per-company RNE/enrichment stages.
+workflow["nodes"].extend([
+    {
+        "parameters": {"conditions": {"options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict", "version": 2}, "conditions": [{"id": "has-companies", "leftValue": "={{ $json.companies.length }}", "rightValue": 0, "operator": {"type": "number", "operation": "gt"}}], "combinator": "and"}, "options": {}},
+        "id": "has-normalized-companies", "name": "Has Companies", "type": "n8n-nodes-base.if", "typeVersion": 2.2, "position": [500, 160],
+    },
+    {
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": code("build_empty_campaign_result.js")},
+        "id": "empty-campaign-result", "name": "Build Empty Campaign Result", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [800, 280],
+    },
+])
+workflow["connections"]["Call Candidate Normalizer"] = {"main": [[{"node": "Has Companies", "type": "main", "index": 0}]]}
+workflow["connections"]["Has Companies"] = {"main": [[{"node": "Call RNE Validation", "type": "main", "index": 0}], [{"node": "Build Empty Campaign Result", "type": "main", "index": 0}]]}
+
 OUTPUT.write_text(json.dumps(workflow, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 print(OUTPUT)

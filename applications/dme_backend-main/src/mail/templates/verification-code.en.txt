@@ -1,0 +1,11 @@
+{{title}}
+
+{{intro}}
+
+Code: {{code}}
+
+This code expires in {{expiresInMinutes}} minutes.
+If you did not ask for this code, you can simply ignore this email.
+
+Best regards,
+The Orange DME team.

@@ -8,6 +8,8 @@ if (!Array.isArray(companies)) throw new Error('Scoring request must contain a c
 const campaign = request.campaign ?? {};
 const plan = request.research_plan ?? {};
 const lower = (value) => String(value ?? '').trim().toLowerCase();
+// Accent-insensitive form, so 'santé' matches 'SANTE' in directory categories.
+const fold = (value) => lower(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const unique = (values) => [...new Set(values.filter(Boolean))];
 const hasAny = (text, terms) => terms.some((term) => text.includes(term));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -27,8 +29,16 @@ const sectorAliases = {
   cybersecurity: ['cybersecurity', 'cybersécurité', 'sécurité informatique'],
   cloud: ['cloud', 'infonuagique', 'hébergement'],
   finance: ['finance', 'financier', 'banque', 'fintech'],
+  // Same terms the discovery connector uses to find these sectors, so a company
+  // discovered for a sector is also recognised as matching it.
+  informatique: ['informatique', 'logiciel', 'telecommunication', 'technolog', 'reseaux'],
+  industrie: ['industr', 'fabrication', 'manufactur', 'usinage', 'mecanique'],
+  sante: ['sante', 'medical', 'medic', 'pharma', 'clinique', 'hopital'],
 };
-const targetSectorTerms = unique(targetSectors.flatMap((sector) => sectorAliases[sector] ?? [sector]));
+sectorAliases.tech = sectorAliases.informatique;
+sectorAliases.industry = sectorAliases.industrie;
+sectorAliases.health = sectorAliases.sante;
+const targetSectorTerms = unique(targetSectors.flatMap((sector) => sectorAliases[sector] ?? sectorAliases[fold(sector)] ?? [sector]).map(fold));
 
 function scoreCompany(company) {
   const reasons = [];
@@ -50,7 +60,8 @@ function scoreCompany(company) {
   const locationText = lower([company.address, company.location, company.governorate].join(' '));
 
   let fit = 8;
-  const sectorMatch = targetSectorTerms.some((sector) => sector && text.includes(sector));
+  const foldedText = fold(text);
+  const sectorMatch = targetSectorTerms.some((sector) => sector && foldedText.includes(sector));
   const locationMatch = targetLocations.some((location) => location && locationText.includes(location));
   if (sectorMatch) { fit += 12; reasons.push('Matches a campaign target sector'); }
   else missing.push('confirmed_target_sector');

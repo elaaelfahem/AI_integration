@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { phone, email, contactsFromPage } from '../services/fact-extraction-gateway/contacts.mjs';
+assert.equal(phone('+216 71 111 100'), '+21671111100');
+assert.equal(phone('00216 71 111 100'), '+21671111100');
+assert.equal(phone('71 111 100'), '+21671111100');
+assert.equal(phone('+33 1 42 68 53 00'), '+33142685300');
+assert.equal(phone('+225 20 30 92 41'), null, 'obsolete foreign number must not become Tunisian');
+assert.equal(phone('123456789012345678'), null);
+assert.equal(phone('garbage 71 111 100'), null);
+assert.equal(email('MAILTO:Commercial@3S.com.tn?subject=test'), 'commercial@3s.com.tn');
+assert.equal(email('bad@@example.com'), null);
+const result = contactsFromPage({ text: 'Tél: +216 71 111 100. Abidjan: +225 20 30 92 41. Référence: 22520309. Phone: +33 1 42 68 53 00. commercial@3s.com.tn', evidence_links: [{type:'phone',value:'+21671111100'},{type:'email',value:'Commercial@3s.com.tn'}] });
+assert.deepEqual(result.filter(x=>x.field==='phone').map(x=>x.value).sort(), ['+21671111100','+33142685300']);
+assert.equal(result.filter(x=>x.field==='email').length,1);
+assert.ok(result.every(x=>x.validation.reachability_verified===false));
+console.log('PASS contact country formats, foreign-number boundaries, identifiers, invalid values, deduplication and honest reachability metadata');

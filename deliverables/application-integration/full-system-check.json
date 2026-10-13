@@ -1,0 +1,31 @@
+{
+  "started_at": "2026-10-13T14:30:06.779Z",
+  "checks": {
+    "health_discovery": "PASS",
+    "health_rne": "PASS",
+    "health_website": "PASS",
+    "health_fact_extractor": "PASS",
+    "health_dme_assistant": "PASS",
+    "health_report_cleaner": "PASS",
+    "health_risk_detector": "PASS",
+    "campaign_end_to_end": "PASS",
+    "assistant_grounding": "PASS",
+    "assistant_review_gate": "PASS",
+    "report_evidence": "PASS",
+    "risk_allow_and_block": "PASS"
+  },
+  "completed_at": "2026-10-13T14:30:40.010Z",
+  "summary": {
+    "passed": 12,
+    "failed": 0,
+    "campaign_id": "acceptance-1791901806998",
+    "company_id": "cmp_1509317c",
+    "score": 54,
+    "category": "B",
+    "offers": [
+      "Broad Band",
+      "Bulk SMS",
+      "Data"
+    ]
+  }
+}

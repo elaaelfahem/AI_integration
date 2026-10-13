@@ -79,6 +79,8 @@ function resultBase(input, status, warnings = []) {
     campaign_id: text(input.campaign_id),
     company_id: text(input.company_id),
     provider: 'RNE',
+    provider_configured: configured,
+    registry_verified: status === 'VERIFIED',
     status,
     validated_at: null,
     identifier_used: text(input.identifier) || null,
@@ -107,7 +109,10 @@ async function validateCompany(input) {
     return { ...resultBase(input, 'NOT_REQUESTED', ['RNE validation requires a manual action']), manual_action_available: true };
   }
   const identifier = normalizedIdentifier(input.identifier);
-  if (!identifier) return resultBase(input, 'SKIPPED_NO_IDENTIFIER');
+  if (!identifier) return resultBase(input, 'SKIPPED_NO_IDENTIFIER', [
+    'Official registry verification not performed: company identifier is missing',
+    ...(!configured ? ['RNE API access is not configured; authorized provider access is required'] : []),
+  ]);
   if (!configured) return resultBase(input, 'UNAVAILABLE', ['RNE connector is not configured']);
 
   const headers = { accept: 'application/json' };

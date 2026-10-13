@@ -17,3 +17,18 @@ server:
 
 valkey:
   url: false
+
+# Upstream engines regularly need more than the 3 s default from this network.
+outgoing:
+  request_timeout: 8.0
+  max_request_timeout: 15.0
+
+# Company discovery needs web results, not encyclopedia entries. Mojeek adds an
+# independent index for when the larger engines rate-limit or show a CAPTCHA.
+engines:
+  - name: mojeek
+    disabled: false
+  - name: wikipedia
+    disabled: true
+  - name: wikidata
+    disabled: true

@@ -1,0 +1,733 @@
+--- a/.env.example
++++ b/.env.example
+@@ -0,0 +1,2 @@
++NEXT_PUBLIC_API_URL=http://localhost:3001
++# Run on port 3002 because Flowise uses port 3000.
+--- a/.gitignore
++++ b/.gitignore
+@@ -37,6 +37,7 @@
+ 
+ # env files (can opt-in for committing if needed)
+ .env*
++!.env.example
+ 
+ # vercel
+ .vercel
+--- a/AI_INTEGRATION.md
++++ b/AI_INTEGRATION.md
+@@ -0,0 +1,123 @@
++# DME application + AI integration
++
++The supplied backend and frontend are in `applications/dme_backend-main` and `applications/dme_frontend-main`. They remain separate applications so changes can be copied back into their respective GitHub repositories. No GitHub push or public deployment has been performed.
++
++## Local test
++
++- Website: http://localhost:3002
++- Backend and Swagger: http://localhost:3001/api/docs
++- Flowise keeps port 3000; n8n keeps port 5678.
++- Login details: `deployment/application/.local-access.md` (local-only, ignored by Git).
++- Use the manager account to run prospecting or ask questions on a company page or prospect drawer.
++- Use the agent account and its test meeting to preview a report summary. Applying a summary changes the draft in the form; the existing Save/Submit actions still control persistence.
++
++The isolated PostgreSQL database is `dme_integration`, on host port 55432. It contains test accounts and live discovery results, not the application's production data.
++
++## Connected flows
++
++1. Browser `POST /prospecting/runs` → authenticated Nest backend → n8n `/webhook/dme/campaign-run` → discovery, qualification, deduplication, RNE checks, website enrichment, scoring and offer recommendations → transactional company and prospect persistence.
++2. Browser `POST /ai/companies/:id/assistant` → company authorization → risk check → assistant gateway. The backend loads company context from its database; the browser cannot supply arbitrary company facts.
++3. Browser `POST /ai/meetings/:id/clean-report` → assigned-agent and draft checks → risk check → report cleaner → preview. No report is saved automatically.
++4. Source collection jobs now call the real pipeline and store actual source references. Unsupported connectors are rejected; no placeholder company is generated.
++
++Managers and administrators can discover companies. Agents can view and ask about companies assigned to them. Imported manager companies remain in that manager's scope. Repeated discovery by the same caller uses a stable source ID and preserves the shortlist/assignment state and manually edited company fields. Cross-user and pre-existing manual-record deduplication is not implemented.
++
++AI context and source IDs are stored in new company columns. Source provenance and review warnings are retained. A completed run means execution finished; it does not mean all companies are qualified or officially verified. Requested sectors are not copied into company records as verified facts.
++
++## Server configuration
++
++Set these only on the backend:
++
++```
++AI_N8N_URL=http://127.0.0.1:5678
++AI_ASSISTANT_URL=http://127.0.0.1:8085
++AI_REPORT_CLEANER_URL=http://127.0.0.1:8086
++AI_RISK_URL=http://127.0.0.1:8087
++AI_ENABLE_MODEL=true
++```
++
++The local configuration enables the verified Ollama path in the assistant and report gateways. A model timeout or invalid output returns a clearly labelled rules-based fallback. Discovery, scoring, offer recommendations and risk rules remain deterministic in the bounded application campaign; semantic website extraction and offer explanation are disabled.
++
++The browser uses `NEXT_PUBLIC_API_URL=http://localhost:3001`. CORS allows the local frontend on port 3002. No AI URLs, credentials, or database secrets are included in frontend configuration. For deployment, use the appropriate backend service hostname instead of localhost and configure HTTPS, CORS, and your gateway authentication. The backend now defaults to `HOST=127.0.0.1`; container deployments should explicitly set `HOST=0.0.0.0` behind their intended network boundary.
++
++## Start again
++
++The local app now runs in persistent user services. Start or stop it from this repository root:
++
++```
++bash scripts/start-application-local.sh
++bash scripts/stop-application-local.sh
++```
++
++These scripts manage only `dme-b2b-local-backend` and `dme-b2b-local-frontend`. They do not start at machine boot. To load new builds, restart the two units with `systemctl --user restart dme-b2b-local-backend dme-b2b-local-frontend`. Logs are available with `journalctl --user -u dme-b2b-local-backend -u dme-b2b-local-frontend`.
++
++The manual commands below are an alternative; do not start a second copy on the same ports.
++
++From the AI repository root:
++
++```
++docker compose -f deployment/application/docker-compose.yml up -d
++docker compose -f deployment/dme-assistant-gateway/docker-compose.yml up -d
++docker compose -f deployment/report-cleaner-gateway/docker-compose.yml up -d
++docker compose -f deployment/risk-detector-gateway/docker-compose.yml up -d
++```
++
++The existing n8n, Flowise, discovery, collector, extraction, RNE and SearXNG services must also be running with their imported workflows.
++
++Backend terminal:
++
++```
++cd applications/dme_backend-main
++npm ci --ignore-scripts
++npx prisma generate
++npm run build
++npm run start:prod
++```
++
++Frontend terminal:
++
++```
++cd applications/dme_frontend-main
++npm ci --ignore-scripts
++npm run build
++npm run start -- --port 3002 --hostname 127.0.0.1
++```
++
++For a new **empty local** database, point `.env.local` at it, run `npx prisma migrate deploy`, then `node scripts/seed-local.cjs` (the seed is restricted to local `dme_integration`). Do not run a reset against an existing application database.
++
++## Database migrations
++
++The omitted ticket-table prerequisite is restored in `20260927120200_create_tickets`; the additional missing schema fields are restored in `20261013130000_restore_schema_fields`. All 28 migrations were applied to a separate empty PostgreSQL database, followed by a Prisma schema diff with no differences.
++
++For a new empty database, use `npx prisma migrate deploy`. Existing databases previously created with `db push` or manually applied SQL need their migration history reconciled against their actual schema before deployment: do not blindly apply CREATE statements to existing objects, mark migrations applied without verifying their contents, or reset existing data. The local application's existing `dme_integration` data was preserved; migration verification used `dme_migration_check_20261013`.
++
++## Verification
++
++Updated checks on 13 October 2026:
++
++- Backend build passed; 23 suites / 150 tests passed.
++- Frontend build passed; 12 tests passed.
++- Full AI workflow acceptance: 12 checks passed (see `deliverables/application-integration/full-system-check.json`).
++- Live application campaign saved five companies; source collection saved five source references; report preview and actor-scope checks passed.
++- Authorized manager browser login, dashboard, eight prospects, assistant response, history, company records, calendar, report list and ticket list were verified.
++- The directory provider briefly failed during revalidation. Discovery now reports B2B.tn/Maps transport failures as `SKIPPED`, allowing other sources to continue. The local regression test covers HTTP errors, malformed data and offline directory behavior.
++
++- Backend: `npm test -- --runInBand`.
++- Frontend: `npm test` and `npm run build`.
++- Backend scripts: `node scripts/check-live-ai.cjs`, `node scripts/check-report-ai.cjs`, `node scripts/check-collection-ai.cjs` (local integration database only; they add test runs and results).
++- Browser check: manager login → dashboard count → prospecting results → assistant preview.
++
++## Remaining limits
++
++- RNE credentials are still absent, so official registry verification is unavailable.
++- Collection supports connector references `b2b_tn`, `web_search`, and `google_maps`; Maps requires its existing API credentials and may incur provider charges. Other source catalogue entries are not implemented.
++- Interactive campaigns are capped at five companies and one query per source. They are synchronous, with a five-minute upstream timeout and a longer browser timeout. For public deployment, move campaign execution to a durable queue with polling and idempotency. Campaigns and collection jobs older than ten minutes are marked failed at startup and every minute so they can be relaunched. They are not automatically replayed; durable queues remain a production-scale improvement.
++- Local assistant and report gateways use schema-constrained Ollama generation (`OLLAMA_URL`, `OLLAMA_MODEL=llama3.2`) when AI_ENABLE_MODEL=true. Live calls returned model_used=true in approximately 10 and 5 seconds. IDs, scores and review decisions stay application-owned; report evidence is copied from exact source sentences. Model failures fall back explicitly to rules. Review-blocked companies do not call the model.
++- Search sector aliases cover tech/informatique, industry/industrie and health/santé. Web search uses a bounded 15-minute exact-query cache on failure, preserving evidence timestamps, and a one-minute provider cooldown. Uncached searches still depend on external availability; CAPTCHA and rate limits are not bypassed.
++- SMTP and Firebase push are not configured for the isolated test environment. These integrations were not verified by this work.
++
++## Local model setup
++
++The gateway Compose files use the already-installed Ollama through `host.docker.internal:11434`. On Linux, the host must expose Ollama to the Docker bridge (the existing local proxy does this); do not expose it publicly. The installed model must match OLLAMA_MODEL. Legacy Flowise transport remains available by omitting OLLAMA_URL. Generation has a 65-second deadline; the frontend exposes rules mode when fallback is used.
++
++Additional regression commands: `node scripts/test_local_models.mjs`, `node scripts/test_search_cache.mjs`, `node scripts/test_web_search.mjs`, `node scripts/test_empty_campaign.js`.
+--- a/app/prospection/page.tsx
++++ b/app/prospection/page.tsx
+@@ -4,6 +4,7 @@
+ import { createPortal } from 'react-dom';
+ import Image from 'next/image';
+ import { AppShell } from '@/components/workspace/app-shell';
++import { CompanyAiAssistant } from '@/components/companies/company-ai-assistant';
+ import { useAuth } from '@/components/auth/auth-provider';
+ import { Toast } from '@/components/auth/toast';
+ import {
+@@ -26,8 +27,8 @@
+ 
+ // Same thresholds as the backend (prospecting.constants.ts).
+ function potentialLevel(score: number): PotentialLevel {
+-  if (score >= 90) return 'veryHigh';
+-  if (score >= 70) return 'high';
++  if (score >= 75) return 'veryHigh';
++  if (score >= 50) return 'high';
+   return 'medium';
+ }
+ 
+@@ -73,7 +74,7 @@
+ 
+ export default function ProspectionPage() {
+   const { account } = useAuth();
+-  const { messages } = useI18n();
++  const { messages, locale } = useI18n();
+   const t = messages.prospectionPage;
+   const [tab, setTab] = useState<Tab>('opportunities');
+   const [criteriaOpen, setCriteriaOpen] = useState(false);
+@@ -148,7 +149,7 @@
+         !locationFilter || prospect.location.includes(locationFilter);
+       const matchesScore =
+         !scoreFilter ||
+-        (scoreFilter === '90' ? prospect.score >= 90 : prospect.score >= 70);
++        (scoreFilter === '75' ? prospect.score >= 75 : prospect.score >= 50);
+       const matchesPotential =
+         !potentialFilter || potentialLevel(prospect.score) === potentialFilter;
+       const matchesStatus = !statusFilter || prospect.status === statusFilter;
+@@ -206,13 +207,21 @@
+     setCriteriaOpen(false);
+     setTab('opportunities');
+     setLoading(true);
+-    setHasResults(false);
+     setPageError('');
+     try {
+-      await authApi.startProspecting(criteria);
++      const result = await authApi.startProspecting(criteria);
+       await loadProspection();
++      if (result.discoveredCount === 0) {
++        pushToast(locale === 'fr'
++          ? 'Aucune entreprise trouvée. Essayez un autre secteur ou une autre région.'
++          : 'No companies found. Try another sector or region.');
++      }
+     } catch (reason) {
+-      setPageError(reason instanceof ApiError ? reason.message : t.launchError);
++      await loadProspection();
++      const message = reason instanceof ApiError ? reason.message : t.launchError;
++      setPageError(locale === 'fr' && message.startsWith('Discovery sources')
++        ? 'Les sources de recherche sont temporairement indisponibles. Réessayez plus tard.'
++        : message);
+     } finally {
+       setLoading(false);
+     }
+@@ -372,16 +381,18 @@
+                 {t.tabHistory}
+               </button>
+             </div>
+-            {tab === 'opportunities' && hasResults && (
+-              <button
+-                className="orange-button"
+-                type="button"
+-                onClick={() => setCriteriaOpen(true)}
+-              >
+-                <SparkleIcon />
+-                {t.launch}
+-              </button>
+-            )}
++            {tab === 'opportunities' &&
++              hasResults &&
++              account?.role !== 'AGENT' && (
++                <button
++                  className="orange-button"
++                  type="button"
++                  onClick={() => setCriteriaOpen(true)}
++                >
++                  <SparkleIcon />
++                  {t.launch}
++                </button>
++              )}
+           </div>
+         </div>
+ 
+@@ -417,7 +428,7 @@
+             />
+           ) : (
+             <>
+-              {!hasResults && !loading ? (
++              {!hasResults && !loading && account?.role !== 'AGENT' ? (
+                 <EmptyProspection
+                   t={t}
+                   onLaunch={() => setCriteriaOpen(true)}
+@@ -727,7 +738,8 @@
+           onChange={onScoreFilterChange}
+           options={[
+             { value: '', label: t.filterScore },
+-            { value: '90', label: t.filterScore90 },
++            { value: '50', label: t.filterScoreQualified },
++            { value: '75', label: t.filterScorePriority },
+           ]}
+         />
+         <FilterDropdown
+@@ -1293,6 +1305,42 @@
+         {run.failure_message ? (
+           <p className="users-error">{run.failure_message}</p>
+         ) : null}
++        {run.status === 'COMPLETED' ? (
++          <>
++            <h3 style={{ fontSize: '0.9rem', margin: '1rem 0 0.5rem' }}>
++              {t.runCompaniesTitle}
++            </h3>
++            {run.companies.length ? (
++              <ul
++                style={{
++                  maxHeight: '14rem',
++                  overflowY: 'auto',
++                  margin: '0 0 1rem',
++                  paddingLeft: '1.1rem',
++                  fontSize: '0.8rem',
++                  lineHeight: 1.6,
++                }}
++              >
++                {run.companies.map((company) => (
++                  <li key={company.id}>
++                    <strong>{company.name}</strong>
++                    {company.score === null ? '' : ` — ${company.score}/100`}
++                    <span style={{ color: '#777' }}>
++                      {[company.sector, company.governorate]
++                        .filter(Boolean)
++                        .map((value) => ` · ${value}`)
++                        .join('')}
++                    </span>
++                  </li>
++                ))}
++              </ul>
++            ) : (
++              <p style={{ color: '#777', fontSize: '0.8rem' }}>
++                {t.runNoNewCompanies}
++              </p>
++            )}
++          </>
++        ) : null}
+         <button className="outline-button" type="button" onClick={onClose}>
+           {t.close}
+         </button>
+@@ -1585,6 +1633,7 @@
+       >
+         {shortlisted ? t.alreadyShortlisted : t.addToShortlist}
+       </button>
++      <CompanyAiAssistant key={prospect.id} companyId={prospect.id} />
+     </aside>
+   );
+ }
+--- a/lib/api.ts
++++ b/lib/api.ts
+@@ -473,6 +473,30 @@
+     });
+   }
+ 
++  async askCompanyAssistant(companyId: string, question: string) {
++    return this.authorizedRequest<{
++      answer: string;
++      next_action: string;
++      key_facts: string[];
++      warnings: string[];
++      model_used: boolean;
++    }>(`/ai/companies/${companyId}/assistant`, {
++      method: 'POST',
++      body: JSON.stringify({ question }),
++    });
++  }
++
++  async cleanVisitReport(meetingId: string, text: string) {
++    return this.authorizedRequest<{
++      executive_summary: string;
++      warnings: string[];
++      model_used: boolean;
++    }>(`/ai/meetings/${meetingId}/clean-report`, {
++      method: 'POST',
++      body: JSON.stringify({ text }),
++    });
++  }
++
+   async startProspecting(input: Partial<ProspectingCriteria>) {
+     return this.authorizedRequest<{
+       id: string;
+@@ -1075,7 +1099,11 @@
+       const controller = new AbortController();
+       const timeoutId = setTimeout(
+         () => controller.abort(),
+-        API_REQUEST_TIMEOUT_MS,
++        path === '/prospecting/runs'
++          ? 330_000
++          : path.startsWith('/ai/')
++            ? 100_000
++            : API_REQUEST_TIMEOUT_MS,
+       );
+ 
+       try {
+--- a/lib/i18n/messages/en.ts
++++ b/lib/i18n/messages/en.ts
+@@ -1283,7 +1283,8 @@
+     filterSector: 'Sector',
+     filterGovernorate: 'Governorate',
+     filterScore: 'AI score',
+-    filterScore90: '90% and above',
++    filterScoreQualified: '50 and above',
++    filterScorePriority: '75 and above',
+     filterPotential: 'Potential',
+     filterStatus: 'Status',
+     filterDate: 'Date',
+@@ -1307,8 +1308,8 @@
+     },
+     notProvided: 'Not provided',
+     resultsTitle: 'Prospecting results',
+-    qualifiedCountOne: '{{count}} qualified opportunity',
+-    qualifiedCountOther: '{{count}} qualified opportunities',
++    qualifiedCountOne: '{{count}} discovered opportunity',
++    qualifiedCountOther: '{{count}} discovered opportunities',
+     view: 'View',
+     removeAction: '- Remove',
+     shortlistAction: '+ Shortlist',
+@@ -1330,6 +1331,9 @@
+     assign: 'Assign',
+     assigning: 'Assigning…',
+     runDetailsTitle: 'Prospecting details',
++    runCompaniesTitle: 'New companies found',
++    runNoNewCompanies:
++      'No new companies: the matching ones are already in your earlier searches.',
+     assignTitle: 'Assign an opportunity',
+     assignIntro:
+       '{{company}}: choose the agent and the date of the first visit.',
+--- a/lib/i18n/messages/fr.ts
++++ b/lib/i18n/messages/fr.ts
+@@ -1313,7 +1313,8 @@
+     filterSector: 'Secteur',
+     filterGovernorate: 'Gouvernorat',
+     filterScore: 'Score IA',
+-    filterScore90: '90% et plus',
++    filterScoreQualified: '50 et plus',
++    filterScorePriority: '75 et plus',
+     filterPotential: 'Potentiel',
+     filterStatus: 'Statut',
+     filterDate: 'Date',
+@@ -1333,8 +1334,8 @@
+     },
+     notProvided: 'Non renseigné',
+     resultsTitle: 'Résultats de prospection',
+-    qualifiedCountOne: '{{count}} opportunité qualifiée',
+-    qualifiedCountOther: '{{count}} opportunités qualifiées',
++    qualifiedCountOne: '{{count}} opportunité trouvée',
++    qualifiedCountOther: '{{count}} opportunités trouvées',
+     view: 'Voir',
+     removeAction: '- Retirer',
+     shortlistAction: '+ Shortlist',
+@@ -1356,6 +1357,9 @@
+     assign: 'Assigner',
+     assigning: 'Assignation…',
+     runDetailsTitle: 'Détails de la prospection',
++    runCompaniesTitle: 'Nouvelles entreprises trouvées',
++    runNoNewCompanies:
++      'Aucune nouvelle entreprise : celles qui correspondent sont déjà dans vos recherches précédentes.',
+     assignTitle: 'Assigner une opportunité',
+     assignIntro:
+       "{{company}} : choisissez l'agent et la date de la première visite.",
+--- a/lib/i18n/messages/types.ts
++++ b/lib/i18n/messages/types.ts
+@@ -1196,7 +1196,8 @@
+     filterSector: string;
+     filterGovernorate: string;
+     filterScore: string;
+-    filterScore90: string;
++    filterScoreQualified: string;
++    filterScorePriority: string;
+     filterPotential: string;
+     filterStatus: string;
+     filterDate: string;
+@@ -1230,6 +1231,8 @@
+     assign: string;
+     assigning: string;
+     runDetailsTitle: string;
++    runCompaniesTitle: string;
++    runNoNewCompanies: string;
+     assignTitle: string;
+     assignIntro: string;
+     agentLabel: string;
+--- a/types/auth.ts
++++ b/types/auth.ts
+@@ -305,6 +305,13 @@
+   failure_message: string | null;
+   created_at: string;
+   completed_at: string | null;
++  companies: Array<{
++    id: string;
++    name: string;
++    sector: string | null;
++    governorate: string | null;
++    score: number | null;
++  }>;
+ }
+ 
+ export interface DashboardSnapshot {
+--- a/components/dashboard.tsx
++++ b/components/dashboard.tsx
+@@ -298,6 +298,7 @@
+   const [isLoading, setIsLoading] = useState(true);
+   const showSkeleton = isLoading || DEBUG_SKELETON;
+   const [prospectionOpen, setProspectionOpen] = useState(false);
++  const [prospectingBusy, setProspectingBusy] = useState(false);
+   const [loadError, setLoadError] = useState('');
+   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
+ 
+@@ -718,9 +719,10 @@
+                 <button
+                   type="button"
+                   className="dashboard-launch-btn"
++                  disabled={account?.role === 'AGENT' || prospectingBusy}
+                   onClick={() => setProspectionOpen(true)}
+                 >
+-                  {t.launchProspection}
++                  {prospectingBusy ? 'Prospection…' : t.launchProspection}
+                 </button>
+               </div>
+             </div>
+@@ -732,6 +734,7 @@
+             onClose={() => setProspectionOpen(false)}
+             onSubmit={async (criteria) => {
+               setProspectionOpen(false);
++              setProspectingBusy(true);
+               try {
+                 await authApi.startProspecting(criteria);
+                 router.push('/prospection');
+@@ -741,6 +744,8 @@
+                     ? reason.message
+                     : t.prospectionLaunchError,
+                 );
++              } finally {
++                setProspectingBusy(false);
+               }
+             }}
+           />
+--- a/components/data-sources/data-source-management.tsx
++++ b/components/data-sources/data-source-management.tsx
+@@ -133,6 +133,7 @@
+   const [page, setPage] = useState(1);
+   const [drawer, setDrawer] = useState<'source' | null>(null);
+   const [prospectionOpen, setProspectionOpen] = useState(false);
++  const [prospectingBusy, setProspectingBusy] = useState(false);
+   const [collectionOpen, setCollectionOpen] = useState(false);
+   const [editing, setEditing] = useState<DataSource | null>(null);
+   const [openActionId, setOpenActionId] = useState<string | null>(null);
+@@ -478,6 +479,7 @@
+           <button
+             className="orange-button"
+             type="button"
++            disabled={prospectingBusy}
+             onClick={() => setProspectionOpen(true)}
+             style={{
+               display: 'inline-flex',
+@@ -872,11 +874,13 @@
+           onSubmit={saveSource}
+         />
+       ) : null}
++      {prospectingBusy && <p role="status">Prospection…</p>}
+       {prospectionOpen ? (
+         <CriteriaDialog
+           onClose={() => setProspectionOpen(false)}
+           onSubmit={async (criteria) => {
+             setProspectionOpen(false);
++            setProspectingBusy(true);
+             try {
+               await authApi.startProspecting(criteria);
+               notify('success', t.prospectionStarted);
+@@ -885,6 +889,8 @@
+               const message = messageFrom(reason, t.prospectionError);
+               setError(message);
+               notify('error', message);
++            } finally {
++              setProspectingBusy(false);
+             }
+           }}
+         />
+--- a/components/companies/company-ai-assistant.tsx
++++ b/components/companies/company-ai-assistant.tsx
+@@ -0,0 +1,89 @@
++'use client';
++import { useState } from 'react';
++import { authApi } from '@/lib/api';
++import { useI18n } from '@/lib/i18n/i18n-context';
++export function CompanyAiAssistant({ companyId }: { companyId: string }) {
++  const { locale } = useI18n();
++  const fr = locale === 'fr';
++  const [question, setQuestion] = useState('');
++  const [result, setResult] = useState<Awaited<
++    ReturnType<typeof authApi.askCompanyAssistant>
++  > | null>(null);
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState('');
++  return (
++    <section className="profile-card">
++      <h2>{fr ? 'Assistant commercial' : 'Sales assistant'}</h2>
++      <form
++        onSubmit={async (event) => {
++          event.preventDefault();
++          setBusy(true);
++          setError('');
++          setResult(null);
++          try {
++            setResult(await authApi.askCompanyAssistant(companyId, question));
++          } catch {
++            setError(
++              fr
++                ? 'Assistant indisponible. Réessayez.'
++                : 'Assistant unavailable. Please retry.',
++            );
++          } finally {
++            setBusy(false);
++          }
++        }}
++      >
++        <label className="drawer-field">
++          <span>
++            {fr
++              ? 'Votre question sur cette entreprise'
++              : 'Your question about this company'}
++          </span>
++          <textarea
++            value={question}
++            onChange={(e) => setQuestion(e.target.value)}
++            required
++            maxLength={2000}
++            rows={3}
++            placeholder={
++              fr
++                ? 'Comment préparer la visite ?'
++                : 'How should I prepare the visit?'
++            }
++          />
++        </label>
++        <button
++          type="submit"
++          className="btn btn-primary"
++          disabled={busy || !question.trim()}
++        >
++          {busy ? (fr ? 'Analyse…' : 'Analyzing…') : fr ? 'Demander' : 'Ask'}
++        </button>
++      </form>
++      {error && <p role="alert">{error}</p>}
++      {result && (
++        <div aria-live="polite">
++          <p>{result.answer}</p>
++          <ul>
++            {result.key_facts?.map((fact, i) => (
++              <li key={i}>{fact}</li>
++            ))}
++          </ul>
++          <p>{result.next_action}</p>
++          {!result.model_used && (
++            <p>
++              {fr
++                ? 'Réponse basée sur les règles et les données disponibles.'
++                : 'Response based on rules and available data.'}
++            </p>
++          )}
++          {result.warnings
++            ?.filter((warning) => !warning.startsWith('Flowise '))
++            .map((warning, i) => (
++              <p key={i}>{warning}</p>
++            ))}
++        </div>
++      )}
++    </section>
++  );
++}
+--- a/components/companies/company-details.tsx
++++ b/components/companies/company-details.tsx
+@@ -1,5 +1,6 @@
+ 'use client';
+ 
++import { CompanyAiAssistant } from './company-ai-assistant';
+ import { useEffect, useState } from 'react';
+ import { useRouter } from 'next/navigation';
+ import Image from 'next/image';
+@@ -330,6 +331,7 @@
+               }
+             />
+           </section>
++          <CompanyAiAssistant key={companyId} companyId={companyId} />
+           <section className="profile-card">
+             <h2>
+               <span>{messages.shared.companyEvidenceTitle}</span>
+--- a/components/visit-reports/visit-report-drawer.tsx
++++ b/components/visit-reports/visit-report-drawer.tsx
+@@ -42,6 +42,10 @@
+   const [loading, setLoading] = useState(true);
+   const [report, setReport] = useState<VisitReport | null>(null);
+   const [summary, setSummary] = useState('');
++  const [cleaning, setCleaning] = useState(false);
++  const [cleaned, setCleaned] = useState<Awaited<
++    ReturnType<typeof authApi.cleanVisitReport>
++  > | null>(null);
+   const [needs, setNeeds] = useState<VisitReportNeed[]>([]);
+   const [solutions, setSolutions] = useState<VisitReportSolution[]>([]);
+   const [interestLevel, setInterestLevel] = useState<
+@@ -258,12 +262,76 @@
+               <span>{t.formSummaryLabel}</span>
+               <textarea
+                 value={summary}
+-                onChange={(event) => setSummary(event.target.value)}
++                onChange={(event) => {
++                  setSummary(event.target.value);
++                  setCleaned(null);
++                }}
+                 placeholder={t.formSummaryPlaceholder}
+                 rows={4}
+                 disabled={readOnly}
+               />
+             </label>
++            {!readOnly && (
++              <div>
++                <button
++                  type="button"
++                  className="btn btn-secondary"
++                  disabled={cleaning || !summary.trim()}
++                  onClick={async () => {
++                    setCleaning(true);
++                    setCleaned(null);
++                    setError('');
++                    try {
++                      setCleaned(
++                        await authApi.cleanVisitReport(meetingId, summary),
++                      );
++                    } catch {
++                      setError(
++                        locale === 'fr'
++                          ? 'Nettoyage indisponible. Réessayez.'
++                          : 'Report cleanup unavailable. Please retry.',
++                      );
++                    } finally {
++                      setCleaning(false);
++                    }
++                  }}
++                >
++                  {cleaning
++                    ? locale === 'fr'
++                      ? 'Analyse…'
++                      : 'Analyzing…'
++                    : locale === 'fr'
++                      ? 'Proposer un résumé'
++                      : 'Suggest a summary'}
++                </button>
++                {cleaned && (
++                  <div aria-live="polite">
++                    <p>{cleaned.executive_summary}</p>
++                    {!cleaned.model_used && (
++                      <p>
++                        {locale === 'fr'
++                          ? 'Résumé basé sur les règles.'
++                          : 'Rule-based summary.'}
++                      </p>
++                    )}
++                    <button
++                      type="button"
++                      onClick={() => {
++                        setSummary(cleaned.executive_summary);
++                        setCleaned(null);
++                      }}
++                    >
++                      {locale === 'fr'
++                        ? 'Utiliser ce résumé'
++                        : 'Use this summary'}
++                    </button>
++                    <button type="button" onClick={() => setCleaned(null)}>
++                      {locale === 'fr' ? 'Conserver mon texte' : 'Keep my text'}
++                    </button>
++                  </div>
++                )}
++              </div>
++            )}
+             <div className="drawer-field">
+               <span>{t.formNeedsLabel}</span>
+               <div className="visit-report-chip-group">

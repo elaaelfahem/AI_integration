@@ -9,7 +9,10 @@ for (const field of ['raw_candidate_count', 'unique_company_count', 'duplicates_
 if (!Array.isArray(result.companies) || !Array.isArray(result.warnings)) {
   throw new Error('Normalization output requires companies and warnings arrays');
 }
-if (result.raw_candidate_count !== result.unique_company_count + result.duplicates_merged) {
+if (!Number.isInteger(result.excluded_candidate_count ?? 0) || (result.excluded_candidate_count ?? 0) < 0 || (result.excluded_candidates ?? []).length !== (result.excluded_candidate_count ?? 0)) {
+  throw new Error('Invalid excluded candidate count');
+}
+if (result.raw_candidate_count !== result.unique_company_count + result.duplicates_merged + (result.excluded_candidate_count ?? 0)) {
   throw new Error('Normalization counts are inconsistent');
 }
 const ids = new Set();

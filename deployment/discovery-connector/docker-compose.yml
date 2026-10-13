@@ -8,6 +8,7 @@ services:
       PORT: "8080"
       SEARXNG_URL: "http://searxng:8080"
       GOOGLE_MAPS_SCRAPER_URL: "http://google-maps-scraper:8080"
+      B2B_CACHE_FILE: "/var/cache/discovery/b2b.json"
     volumes:
       # Mount your local discovery.env as a read-only secret.
       # Set DISCOVERY_ENV_FILE to the absolute path of your .env file, e.g.:
@@ -15,6 +16,8 @@ services:
       # If this file does not exist, the service starts without a Google Maps key
       # (B2B.tn and SearXNG still work without it).
       - ${DISCOVERY_ENV_FILE:-/dev/null}:/run/secrets/discovery.env:ro
+      # Last good copy of the B2B.tn directory, kept across restarts.
+      - discovery-cache:/var/cache/discovery
     ports:
       - "127.0.0.1:8080:8080"
     networks:
@@ -26,6 +29,9 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+volumes:
+  discovery-cache:
 
 networks:
   flowise_network:
