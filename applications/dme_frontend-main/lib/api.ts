@@ -500,7 +500,7 @@ export class AuthApi {
   async startProspecting(input: Partial<ProspectingCriteria>) {
     return this.authorizedRequest<{
       id: string;
-      status: 'COMPLETED' | 'FAILED';
+      status: 'RUNNING' | 'COMPLETED' | 'FAILED';
       discoveredCount: number;
       qualifiedCount: number;
     }>('/prospecting/runs', {

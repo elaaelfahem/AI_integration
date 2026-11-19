@@ -43,8 +43,9 @@ function website(value) {
   const match = prepared.match(/^(https?):\/\/([^\/?#]+)([^?#]*)/i);
   if (!match) return '';
   const protocol = match[1].toLocaleLowerCase();
-  const host = match[2].toLocaleLowerCase().replace(/^www\./, '').replace(/:\d+$/, '');
-  if (!host || !host.includes('.')) return '';
+  const host = match[2].toLocaleLowerCase().replace(/:\d+$/, '');
+  if (!host || !host.includes('.') || host.includes('@')) return '';
+  if (['b2b.tn','linkedin.com','facebook.com','kompass.com','goafricaonline.com','pagesjaunes.fr','pagesjaunes.com.tn'].some(p => host === p || host.endsWith('.' + p))) return '';
   const path = match[3] === '/' ? '' : match[3].replace(/\/$/, '');
   return `${protocol}://${host}${path}`;
 }
@@ -52,7 +53,8 @@ function website(value) {
 function domain(value) {
   const normalizedWebsite = website(value);
   const match = normalizedWebsite.match(/^https?:\/\/([^/]+)/i);
-  return match ? match[1] : '';
+  // Keep the supplied fetch hostname, but collapse www only for deduplication.
+  return match ? match[1].replace(/^www\./, '') : '';
 }
 
 function phone(value) {
@@ -94,7 +96,7 @@ function candidateFromEnvelope(envelope) {
   const payload = envelope.payload;
   const displayName = typeof payload.displayName === 'object' ? payload.displayName?.text : payload.displayName;
   const qualification = envelope.source_name === 'web_search' ? qualificationById.get(envelope.source_record_id) : null;
-  const name = firstText(qualification?.company_name, payload.company_name, payload.name, payload.title, displayName, payload.raison_sociale, payload.legal_name);
+  const name = firstText(qualification?.company_name, payload.company_name, payload.name, payload.title, displayName, payload.raison_sociale, payload.legal_name, payload.id ? `Unresolved place ${payload.id}` : `Unresolved candidate ${envelope.source_record_id}`);
   if (!name) throw new Error(`Candidate ${envelope.source_record_id ?? 'unknown'} has no company name`);
 
   const websiteValues = (qualification ? [qualification.website] : valuesFrom(payload, ['website', 'websiteUri', 'site_web', 'url_site'])).map(website).filter(Boolean);
@@ -113,6 +115,7 @@ function candidateFromEnvelope(envelope) {
   return {
     source_record_id: text(envelope.source_record_id),
     qualification,
+    identity_status: payload.identity_status || 'NAMED_CANDIDATE',
     name,
     normalized_name: normalized(name),
     websites: unique(websiteValues),
@@ -166,9 +169,9 @@ function distanceMeters(left, right) {
 function match(left, right) {
   if (left.legal_identifier && left.legal_identifier === right.legal_identifier) return { score: 1, reason: 'legal_identifier' };
   if (left.place_id && left.place_id === right.place_id) return { score: 0.99, reason: 'place_id' };
-  if (left.source_identity && left.source_identity === right.source_identity) return { score: 0.98, reason: 'source_identity' };
+  if (left.source_identity && left.source_identity === right.source_identity && left.normalized_name === right.normalized_name) return { score: 0.98, reason: 'source_identity' };
   if (shares(left.domains, right.domains)) return { score: 0.96, reason: 'website_domain' };
-  if (shares(left.phones, right.phones)) return { score: 0.94, reason: 'phone' };
+  if (left.normalized_name === right.normalized_name && shares(left.phones, right.phones)) return { score: 0.94, reason: 'phone' };
 
   const sameName = left.normalized_name && left.normalized_name === right.normalized_name;
   const sameAddress = left.normalized_address && left.normalized_address === right.normalized_address;
@@ -251,6 +254,8 @@ const groupEntries = [...groups.values()].map((members) => {
     company: {
       company_id: stableId(identity),
       canonical_name: primary.name,
+      identity_status: primary.identity_status,
+      place_ids: placeIds,
       web_qualifications: members.map(({ candidate }) => candidate.qualification).filter(Boolean),
       normalized_name: primary.normalized_name,
       legal_identifier: primary.legal_identifier || null,
@@ -267,7 +272,7 @@ const groupEntries = [...groups.values()].map((members) => {
       source_records: members.map(({ candidate }) => candidate.evidence),
       source_record_count: members.length,
       deduplication_confidence: scores.length ? Number(Math.min(...scores).toFixed(2)) : 1,
-      review_required: false,
+      review_required: primary.identity_status === 'UNRESOLVED_PLACE_ID',
       possible_duplicates: [],
     },
   };

@@ -31,7 +31,7 @@ const sectorAliases = {
   finance: ['finance', 'financier', 'banque', 'fintech'],
   // Same terms the discovery connector uses to find these sectors, so a company
   // discovered for a sector is also recognised as matching it.
-  informatique: ['informatique', 'logiciel', 'telecommunication', 'technolog', 'reseaux'],
+  informatique: ['informatique', 'logiciel', 'telecommunication', 'software', 'developpement web', 'developpement informatique', 'services it', 'solutions it', 'digital services', 'information system'],
   industrie: ['industr', 'fabrication', 'manufactur', 'usinage', 'mecanique'],
   sante: ['sante', 'medical', 'medic', 'pharma', 'clinique', 'hopital'],
 };
@@ -57,16 +57,39 @@ function scoreCompany(company) {
     sourceEvidenceText,
     ...facts.map((fact) => `${fact.field} ${fact.value_text}`),
   ].join(' '));
-  const locationText = lower([company.address, company.location, company.governorate].join(' '));
+  const sourcedAddresses = facts.filter((fact) => fact.field === 'address' && fact.inferred === false
+    && fact.source_url && fact.retrieved_at && fact.evidence_text);
+  const sourcedActivities = facts.filter((fact) => ['activity','product_service','technology'].includes(fact.field)
+    && fact.inferred === false && fact.source_url && fact.retrieved_at && fact.evidence_text);
+  const trustedSectorText = fold([
+    ...sourceRecords.filter((record) => record.source_name === 'b2b_tn')
+      .flatMap((record) => [record.payload?.category, ...(record.payload?.categories ?? [])]),
+    ...sourcedActivities.map((fact) => fact.value_text)].join(' '));
+  const locationText = fold([
+    ...sourcedAddresses.map((fact) => fact.value_text)].join(' '));
 
   let fit = 8;
   const foldedText = fold(text);
-  const sectorMatch = targetSectorTerms.some((sector) => sector && foldedText.includes(sector));
-  const locationMatch = targetLocations.some((location) => location && locationText.includes(location));
+  const wrongSector = targetSectors.some(s => ['tech','informatique','it services','software'].includes(s))
+    && /(?:electri(?:que|cite).{0,35}industri|installation.{0,25}electrique|travaux.{0,25}electrique)/.test(trustedSectorText)
+    && !/(?:developpement (?:de logiciels|informatique|web)|services informatiques|edition de logiciels)/.test(trustedSectorText);
+  const sectorMatch = !wrongSector && targetSectorTerms.some((sector) => sector && trustedSectorText.includes(sector));
+  // A street named after a city is not evidence of a business in that city.
+  const locationMatch = targetLocations.some(location => sourcedAddresses.some(fact => {
+    const value = fold(fact.value_text).replace(/(?:rue|route|avenue|av\.|boulevard|bd\.)\s+(?:de\s+|du\s+)?[a-z-]+/g, '');
+    const token = fold(location).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp('(^|[^a-z])' + token + '($|[^a-z])').test(value);
+  }));
+  if (wrongSector) reasons.push('Cited core activity is outside the requested IT sector');
   if (sectorMatch) { fit += 12; reasons.push('Matches a campaign target sector'); }
   else missing.push('confirmed_target_sector');
-  if (locationMatch) { fit += 6; reasons.push('Matches a campaign target location'); }
+  if (locationMatch) {
+    fit += 6; reasons.push('Matches a campaign target location');
+    evidenceRefs.push(...sourcedAddresses.map((fact) => fact.source_url));
+  }
   else if (targetLocations.length) missing.push('confirmed_target_location');
+  const campaignFitConfirmed = (!targetSectors.length || sectorMatch) && (!targetLocations.length || locationMatch);
+  if (!campaignFitConfirmed) reasons.push('Campaign sector or location requires source confirmation before offers');
   const employeeCount = Number(company.employee_count ?? company.employees ?? company.company_size);
   if (Number.isFinite(employeeCount) && employeeCount >= 50) { fit += 4; reasons.push('Company size indicates enterprise potential'); }
   else if (!Number.isFinite(employeeCount)) missing.push('employee_count');
@@ -76,8 +99,12 @@ function scoreCompany(company) {
   if (hasAny(text, ['software', 'logiciel', 'informatique', 'technology', 'technologie', 'cloud', 'digital', 'finance', 'banque'])) {
     opportunity += 8; reasons.push('Activity suggests demand for business connectivity or digital services');
   }
-  if (hasAny(text, ['recrut', 'hiring', 'expansion', 'croissance', 'nouveau', 'startup'])) {
-    opportunity += 5; reasons.push('Growth signal detected');
+  const growthEvidence = facts.filter(fact => ['job', 'growth_signal'].includes(fact.field)
+    && fact.inferred === false && fact.source_url && fact.retrieved_at && fact.evidence_text
+    && /\b(?:we are hiring|we're hiring|nous recrutons|nous recherchons|job vacancies|open positions|we are expanding|nous ouvrons)\b/i.test(fact.evidence_text));
+  if (growthEvidence.length) {
+    opportunity += 5; reasons.push('Sourced hiring or expansion claim observed; not independently verified');
+    evidenceRefs.push(...growthEvidence.map(fact => fact.source_url));
   }
   if (employeeCount >= 50) opportunity += 5;
   else if (employeeCount >= 10) opportunity += 3;
@@ -116,7 +143,11 @@ function scoreCompany(company) {
   evidenceQuality = clamp(evidenceQuality, 0, 10);
 
   const total = fit + opportunity + reachability + trust + evidenceQuality;
-  const blocked = company.ready_for_scoring === false || official.status === 'CONFLICT';
+  const blocked = wrongSector || company.website_resolution?.status !== 'SUPPORTED_BY_SITE_EVIDENCE' || company.identity_status === 'UNRESOLVED_PLACE_ID' || company.ready_for_scoring === false || official.status === 'CONFLICT';
+  if (company.identity_status === 'UNRESOLVED_PLACE_ID') {
+    missing.push('independent_company_identity');
+    reasons.push('Place ID retained; independent company identity requires review');
+  }
   const category = blocked ? 'REVIEW' : total >= 75 ? 'A' : total >= 50 ? 'B' : 'C';
   const confidence = clamp(Number(((evidenceQuality / 10) * 0.6 + (Number.isFinite(completeness) ? completeness : 0.25) * 0.4).toFixed(2)), 0, 1);
   if (!reasons.length) reasons.push('Insufficient positive evidence; manual enrichment recommended');
@@ -124,7 +155,10 @@ function scoreCompany(company) {
   return {
     ...company,
     scoring: {
-      score_version: 'lead-score-1.0',
+      qualification_status: wrongSector ? 'WRONG_SECTOR' : !sectorMatch && targetSectors.length ? 'UNVERIFIED_SECTOR' : !locationMatch && targetLocations.length ? 'UNVERIFIED_LOCATION' : blocked ? 'NEEDS_REVIEW' : total >= 50 ? 'VERIFIED_FIT' : 'NEEDS_REVIEW',
+      identity_status: company.website_resolution?.status === 'SUPPORTED_BY_SITE_EVIDENCE' ? 'SITE_SUPPORTED' : 'UNVERIFIED',
+      legal_identity_status: official.status === 'VERIFIED' ? 'VERIFIED' : 'UNVERIFIED',
+      score_version: 'lead-score-2.1',
       total_score: total,
       category,
       confidence,
@@ -132,7 +166,7 @@ function scoreCompany(company) {
       reasons: unique(reasons).slice(0, 8),
       missing_data: unique(missing),
       evidence_refs: unique(evidenceRefs),
-      ready_for_offer_recommendation: !blocked && total >= 50,
+      ready_for_offer_recommendation: !blocked && campaignFitConfirmed && total >= 50,
       explanation_source: 'DETERMINISTIC',
     },
   };
@@ -144,7 +178,7 @@ return [{ json: {
   contract_version: '1.0',
   campaign_id: validation.campaign_id ?? request.campaign_id ?? campaign.campaign_id,
   status: categories.review ? 'REVIEW_REQUIRED' : 'COMPLETED',
-  score_version: 'lead-score-1.0',
+  score_version: 'lead-score-2.1',
   company_count: scored.length,
   categories,
   ready_for_offer_recommendation_count: scored.filter((company) => company.scoring.ready_for_offer_recommendation).length,

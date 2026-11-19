@@ -84,6 +84,7 @@ for (let pass = 0; pass < sources.length && tasks.length < maximumQueries; pass 
       priority: 1,
       query_limit: maximumQueries,
       maximum_candidates: campaign.maximum_candidates,
+      search_page: campaign.search_page ?? 1,
     });
   }
 }

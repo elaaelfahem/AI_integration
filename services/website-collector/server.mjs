@@ -1,5 +1,5 @@
 import http from 'node:http';
-import dns from 'node:dns/promises';
+import { lookupWithRetry, isDnsFailure } from './dns.mjs';
 import net from 'node:net';
 import { createHash } from 'node:crypto';
 
@@ -55,7 +55,7 @@ async function safeUrl(raw, expectedHost = null) {
   if (parsed.username || parsed.password) throw new Error('Website URL must not contain credentials');
   const comparableHost = (value) => value.toLocaleLowerCase().replace(/^www\./, '');
   if (expectedHost && comparableHost(parsed.hostname) !== comparableHost(expectedHost)) throw new Error('Cross-domain redirect is blocked');
-  const addresses = await dns.lookup(parsed.hostname, { all: true });
+  const addresses = await lookupWithRetry(parsed.hostname);
   if (!addresses.length || addresses.some(({ address }) => isPrivateAddress(address))) {
     throw new Error('Website resolves to a private or unsafe address');
   }
@@ -95,32 +95,49 @@ async function fetchPage(startUrl, expectedHost, accept = 'text/html, text/plain
       }
       chunks.push(value);
     }
-    return { url: current.toString(), type, body: Buffer.concat(chunks).toString('utf8'), httpStatus: response.status };
+    return { url: current.toString(), type, body: decodeHtmlBuffer(Buffer.concat(chunks), type), httpStatus: response.status };
   }
   throw new Error('Website exceeded redirect limit');
 }
 
+function decodeHtmlBuffer(buffer, contentType = '') {
+  // Some local business sites declare Windows-1252 only in a meta tag.
+  const prefix = buffer.subarray(0, 4096).toString('latin1');
+  const label = contentType.match(/charset\s*=\s*["']?([^\s;"']+)/i)?.[1]
+    ?? prefix.match(/<meta\b[^>]*charset\s*=\s*["']?([^\s;"'>]+)/i)?.[1]
+    ?? prefix.match(/<meta\b[^>]*content\s*=\s*["'][^"']*charset\s*=\s*([^\s;"']+)/i)?.[1]
+    ?? 'utf-8';
+  try { return new TextDecoder(label).decode(buffer); }
+  catch { return new TextDecoder('utf-8').decode(buffer); }
+}
+
 function decodeEntities(value) {
-  const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
-  return value.replace(/&(#x?[0-9a-f]+|amp|lt|gt|quot|apos|nbsp);/gi, (match, entity) => {
+  const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+    eacute:'é', egrave:'è', ecirc:'ê', euml:'ë', agrave:'à', acirc:'â', auml:'ä',
+    icirc:'î', iuml:'ï', ocirc:'ô', ouml:'ö', ugrave:'ù', ucirc:'û', uuml:'ü',
+    ccedil:'ç', rsquo:'’', lsquo:'‘', ldquo:'“', rdquo:'”', ndash:'–', mdash:'—' };
+  return value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, entity) => {
     if (entity[0] === '#') {
       const hex = entity[1]?.toLocaleLowerCase() === 'x';
       const code = Number.parseInt(entity.slice(hex ? 2 : 1), hex ? 16 : 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : ' ';
+      return Number.isInteger(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : ' ';
     }
     return named[entity.toLocaleLowerCase()] ?? ' ';
   });
 }
 
 function htmlText(html) {
-  return decodeEntities(html
+  return decodeEntities(decodeEntities(html
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
     .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, ' ')
     .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<nav\b[^>]*>[\s\S]*?<\/nav>/gi, ' ')
+    .replace(/<blockquote\b[^>]*>[\s\S]*?<\/blockquote>/gi, ' ')
     .replace(/<!--([\s\S]*?)-->/g, ' ')
-    .replace(/<[^>]+>/g, ' '))
-    .replace(/\s+/g, ' ')
+    .replace(/<\/(?:p|div|section|article|li|h[1-6]|tr)>|<br\s*\/?\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')))
+    .split(/\n+/).map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n')
     .trim()
     .slice(0, 40_000);
 }
@@ -150,6 +167,7 @@ function candidateLinks(html, pageUrl, host) {
   const links = [];
   for (const match of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["']/gi)) {
     try {
+      if (/^[^/\s@]+@[^/\s@]+\.[^/\s@]+(?:\?.*)?$/.test(match[1])) continue;
       const parsed = new URL(match[1], pageUrl);
       parsed.hash = '';
       if (!['http:', 'https:'].includes(parsed.protocol)
@@ -160,7 +178,16 @@ function candidateLinks(html, pageUrl, host) {
       // Ignore malformed page links.
     }
   }
-  return [...new Set(links)];
+  // Contact and company pages carry business facts; product pages can otherwise
+  // consume the small crawl budget before we ever visit them.
+  const priority = (value) => {
+    const path = new URL(value).pathname.toLocaleLowerCase();
+    if (/(?:contact|nous-contacter|contactez-nous)/.test(path)) return 0;
+    if (/(?:about|a-propos|qui-sommes|mentions|entreprise|company)/.test(path)) return 1;
+    if (/(?:service|solution|team|equipe|legal)/.test(path)) return 2;
+    return 3;
+  };
+  return [...new Set(links)].sort((a, b) => priority(a) - priority(b));
 }
 
 function evidenceLinks(html, pageUrl) {
@@ -171,10 +198,13 @@ function evidenceLinks(html, pageUrl) {
       if (/^mailto:/i.test(raw)) output.push({ type: 'email', value: raw.replace(/^mailto:/i, '').split('?')[0] });
       else if (/^tel:/i.test(raw)) output.push({ type: 'phone', value: raw.replace(/^tel:/i, '') });
       else {
-        const link = new URL(raw, pageUrl).toString();
-        if (/linkedin\.com/i.test(link)) output.push({ type: 'linkedin', value: link });
-        else if (/facebook\.com/i.test(link)) output.push({ type: 'facebook', value: link });
-        else if (/(?:instagram\.com|x\.com|twitter\.com|youtube\.com)/i.test(link)) output.push({ type: 'other_social', value: link });
+        const parsed = new URL(raw, pageUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) continue;
+        const link = parsed.toString();
+        const belongsTo = domain => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`);
+        if (belongsTo('linkedin.com')) output.push({ type: 'linkedin', value: link });
+        else if (belongsTo('facebook.com')) output.push({ type: 'facebook', value: link });
+        else if (['instagram.com', 'x.com', 'twitter.com', 'youtube.com'].some(belongsTo)) output.push({ type: 'other_social', value: link });
       }
     } catch {
       // Ignore malformed evidence links.
@@ -211,7 +241,7 @@ async function collect(input) {
     const raw = /^https?:\/\//i.test(text(input.website)) ? text(input.website) : `https://${text(input.website)}`;
     homepage = await safeUrl(raw);
   } catch (error) {
-    return { contract_version: '1.0', campaign_id: input.campaign_id, company_id: input.company_id, status: 'BLOCKED_UNSAFE_URL', website: text(input.website), pages: [], warnings: [error.message] };
+    return { contract_version: '1.0', campaign_id: input.campaign_id, company_id: input.company_id, status: isDnsFailure(error) ? 'UNAVAILABLE' : 'BLOCKED_UNSAFE_URL', website: text(input.website), pages: [], warnings: [error.message] };
   }
 
   const warnings = [];
@@ -238,6 +268,8 @@ async function collect(input) {
     }
     try {
       const page = await fetchPage(url, homepage.hostname);
+      seen.add(page.url);
+      if (pages.some(existing => existing.source_url === page.url)) continue;
       const content = htmlText(page.body);
       if (content.length < 40) {
         warnings.push(`Page contained insufficient readable text: ${page.url}`);

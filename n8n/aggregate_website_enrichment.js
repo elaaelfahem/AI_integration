@@ -14,8 +14,26 @@ function factsFor(result, field) {
   return result.facts.filter((fact) => fact.field === field && Number(fact.extractor_confidence) >= 0.8).map((fact) => fact.value_text);
 }
 
+const fold = (value) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const governorates = ['Tunis','Ariana','Ben Arous','Manouba','Nabeul','Zaghouan','Bizerte','Béja','Jendouba','Le Kef','Siliana','Sousse','Monastir','Mahdia','Sfax','Kairouan','Kasserine','Sidi Bouzid','Gabès','Médenine','Tataouine','Gafsa','Tozeur','Kébili'];
+function locationFromFacts(facts) {
+  const addresses = unique(facts.filter((fact) => fact.field === 'address' && fact.inferred === false
+    && fact.source_url && fact.retrieved_at && fact.evidence_text && Number(fact.extractor_confidence) >= 0.8)
+    .map((fact) => fact.value_text));
+  const observed = unique(governorates.filter((place) => addresses.some((address) => {
+    const token = fold(place);
+    const value = fold(address);
+    return new RegExp(`(^|[^a-z])${token}($|[^a-z])`).test(value);
+  })));
+  return {address: addresses.length === 1 ? addresses[0] : null,
+    governorate: observed.length === 1 ? observed[0] : null,
+    evidence: facts.filter((fact) => fact.field === 'address' && addresses.includes(fact.value_text))
+      .map((fact) => ({source_url:fact.source_url,value_text:fact.value_text}))};
+}
+
 const enrichedCompanies = tasks.map((task) => {
   const result = resultByCompany.get(task.company.company_id);
+  task = {...task, company: result?.company ?? task.company};
   if (!result) throw new Error(`Missing extraction result for ${task.company.company_id}`);
   const legalIdentifier = task.company.legal_identifier
     ?? result.facts.find((fact) => fact.field === 'legal_identifier' && Number(fact.extractor_confidence) >= 0.95)?.value_text
@@ -27,17 +45,25 @@ const enrichedCompanies = tasks.map((task) => {
     ...factsFor(result, 'linkedin'), ...factsFor(result, 'facebook'), ...factsFor(result, 'other_social'),
   ]);
   const description = result.summary || task.company.description || null;
-  const completenessFields = [task.company.website, phones.length, emails.length, description, task.company.address, legalIdentifier, socialProfiles.length];
+  const location = locationFromFacts(result.facts);
+  const address = location.address;
+  const governorate = location.governorate;
+  const completenessFields = [task.company.website, phones.length, emails.length, description, address, legalIdentifier, socialProfiles.length];
   return {
     ...task.company,
+    address,
+    governorate,
+    location_evidence: location.evidence,
     legal_identifier: legalIdentifier,
     emails,
     phones,
     social_profiles: socialProfiles,
     description,
     enriched_facts: result.facts,
+    public_signals: result.reputation_signals ?? [],
     website_enrichment: {
       status: result.status,
+      extractor_version: result.extractor_version ?? null,
       collection_status: result.collection_status,
       document_checksum: result.document_checksum,
       model_used: result.model_used,
@@ -63,13 +89,13 @@ const unprocessedCompanies = tasks.flatMap((task) => task.unprocessed_companies 
 }));
 const companies = [...enrichedCompanies, ...unprocessedCompanies];
 
-const unavailable = results.filter((result) => ['UNAVAILABLE', 'BLOCKED_UNSAFE_URL'].includes(result.status)).length;
+const unavailable = results.filter((result) => ['UNAVAILABLE', 'BLOCKED_UNSAFE_URL', 'SKIPPED_NO_WEBSITE'].includes(result.status)).length;
 const fallback = results.filter((result) => result.status === 'COMPLETED_FALLBACK').length;
 return [{
   json: {
     contract_version: '1.0',
     campaign_id: tasks[0].campaign_id,
-    status: unavailable || fallback || unprocessedCompanies.length ? 'PARTIAL' : 'COMPLETED',
+    status: unavailable || fallback || unprocessedCompanies.length || companies.some(c => c.web_research?.status === 'PARTIAL') ? 'PARTIAL' : 'COMPLETED',
     company_count: companies.length,
     source_company_count: tasks[0].source_company_count,
     companies_enriched: results.filter((result) => result.status.startsWith('COMPLETED')).length,

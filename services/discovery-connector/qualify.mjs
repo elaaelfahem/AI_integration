@@ -1,12 +1,13 @@
 // Search evidence is kept separate from immutable raw-source envelopes.
 const norm = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const hostOf = value => new URL(value).hostname.toLowerCase().replace(/^www\./, '');
-const platforms = ['scribd.com', 'goafricaonline.com', 'b2b.tn', 'linkedin.com', 'facebook.com', 'instagram.com', 'wikipedia.org', 'youtube.com', 'kompass.com', 'pagesjaunes.com.tn', 'pagesjaunes.fr', 'emploi.nat.tn', 'keejob.com', 'tanitjobs.com', 'indeed.com', 'glassdoor.com'];
+const platforms = ['scribd.com', 'goafricaonline.com', 'b2b.tn', 'ween.tn', 'expat.com', 'linkedin.com', 'facebook.com', 'instagram.com', 'wikipedia.org', 'youtube.com', 'kompass.com', 'pagesjaunes.com.tn', 'pagesjaunes.fr', 'emploi.nat.tn', 'keejob.com', 'tanitjobs.com', 'indeed.com', 'glassdoor.com'];
 export function preclassify(record) {
   const url = record.payload?.url || record.source_url;
   let parsed;
   try { parsed = new URL(url); } catch { return 'INVALID_URL'; }
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) return 'INVALID_URL';
+  if (/comparateur de prix|price comparison/i.test(norm(record.payload?.title))) return 'PRICE_COMPARISON_PLATFORM';
   const host = hostOf(url);
   if (platforms.some(p => host === p || host.endsWith(`.${p}`))) return 'DIRECTORY_OR_PLATFORM';
   if (/\.(pdf|docx?|xlsx?|pptx?)(?:$|[?#])/i.test(url)) return 'DOCUMENT';
@@ -28,14 +29,29 @@ export function assessPage(record, page) {
   const names = [...(page.organization_names ?? []), ...String(page.title || '').split(/\s+[|–—-]\s+|\s*:\s*/)].map(x => String(x).trim()).filter(x => x.length >= 2 && x.length <= 100);
   // Require an actual brand token shared with the site's host, not generic SEO words.
   const name = names.find(n => tokens(n).some(t => domainTokens.some(d => d === t)));
+  // Page titles and schema organization names sometimes append SEO descriptions.
+  const brand = name?.split(/\s*[|,]\s*/)[0]?.trim();
+  let companyName = brand && tokens(brand).some(t => domainTokens.includes(t)) ? brand : name;
+  if (companyName && companyName.length > 45 && domainTokens.length) {
+    // Long SEO titles can append services and navigation after the brand.
+    // Keep only the leading words that cover the host's distinctive tokens.
+    const words = companyName.split(/\s+/);
+    for (let count = 1; count <= Math.min(words.length, 5); count++) {
+      const prefix = words.slice(0, count).join(' ');
+      if (domainTokens.every(token => tokens(prefix).includes(token))) {
+        companyName = prefix;
+        break;
+      }
+    }
+  }
   const contacts = (page.evidence_links ?? []).filter(x => ['email','phone'].includes(x.type));
   const business = /\b(nos services|nos solutions|nos clients|notre entreprise|notre societe|nous accompagnons|specialis[eé]|our services|our solutions|our clients|our company|fournisseur|integrateur|prestations|expertise)\b/.test(body);
-  if (!name || !business || !contacts.length) return { status: 'REVIEW_REQUIRED', reason: !name ? 'BUSINESS_IDENTITY_UNCLEAR' : !business ? 'BUSINESS_ACTIVITY_UNCLEAR' : 'CONTACT_EVIDENCE_MISSING' };
+  if (!name || !business) return { status: 'REVIEW_REQUIRED', reason: !name ? 'BUSINESS_IDENTITY_UNCLEAR' : 'BUSINESS_ACTIVITY_UNCLEAR' };
   return {
-    status: 'QUALIFIED', reason: 'BUSINESS_WEBSITE_WITH_IDENTITY_AND_CONTACT', company_name: name,
+    status: 'QUALIFIED', reason: 'BUSINESS_WEBSITE_WITH_IDENTITY_AND_ACTIVITY', company_name: companyName,
     website: new URL('/', page.source_url).toString(),
     website_status: 'SUPPORTED_BY_SITE_EVIDENCE', // Not independent legal/ownership verification.
-    evidence: { source_url: page.source_url, retrieved_at: page.retrieved_at, checksum: page.checksum, title: page.title, organization_names: page.organization_names ?? [], contact_links: contacts, method: 'domain_brand_and_business_contact_v1' },
+    evidence: { source_url: page.source_url, retrieved_at: page.retrieved_at, checksum: page.checksum, title: page.title, organization_names: page.organization_names ?? [], contact_links: contacts, method: 'domain_brand_and_business_v2' },
   };
 }
 export function corroborateWebsite(decision, records) {

@@ -4,9 +4,16 @@ services:
       context: ../../services/discovery-connector
     container_name: b2b-discovery-connector
     restart: unless-stopped
+    # The host resolver intermittently times out; override for this service only.
+    dns:
+      - ${B2B_DNS_SERVER:-1.1.1.1}
     environment:
       PORT: "8080"
+      # Paid providers require explicit operator authorization.
+      ALLOW_PAID_SEARCH: "${ALLOW_PAID_SEARCH:-false}"
       SEARXNG_URL: "http://searxng:8080"
+      # Identifies this project to the public Overpass service; disable by clearing it.
+      OSM_USER_AGENT: "${OSM_USER_AGENT:-DME-AI/1.0 (+https://github.com/Orange-Summer-Challenge-2026-Tunisia/DME_AI)}"
       GOOGLE_MAPS_SCRAPER_URL: "http://google-maps-scraper:8080"
       B2B_CACHE_FILE: "/var/cache/discovery/b2b.json"
     volumes:
@@ -21,7 +28,9 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     networks:
-      - flowise_network
+      flowise_network: {}
+      egress_network:
+        gw_priority: 1
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -37,3 +46,6 @@ networks:
   flowise_network:
     external: true
     name: docker_default
+  egress_network:
+    external: true
+    name: tp4_n8n_local

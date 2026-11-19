@@ -10,7 +10,7 @@ services:
     ports: ["127.0.0.1:55432:5432"]
     volumes: ["dme_application_data:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dme_local -d dme_local"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 10

@@ -1,4 +1,4 @@
-// The lead-scoring model's own bands: 50 is where it marks a company ready for
-// an offer recommendation (category B), 75 is its top band (category A).
+// Score bands are only thresholds. Evidence and identity gates must also
+// pass before an offer is allowed; a high score alone never qualifies a lead.
 export const QUALIFIED_AI_SCORE = 50;
 export const PRIORITY_AI_SCORE = 75;

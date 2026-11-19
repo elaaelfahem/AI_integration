@@ -79,7 +79,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://127.0.0.1:5678/webhook/dme/research-plan",
+        "url": "={{ $json.supplied_companies ? 'http://discovery-connector:8080/v1/plan-supplied' : 'http://127.0.0.1:5678/webhook/dme/research-plan' }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ $json }}",

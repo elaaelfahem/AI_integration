@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/components/auth/auth-provider';
 import { Toast } from '@/components/auth/toast';
+import { VisitReportDrawer } from '@/components/visit-reports/visit-report-drawer';
 import {
   PromptDialog,
   RescheduleDialog,
@@ -64,6 +65,7 @@ export function MeetingDetails({ meetingId }: { meetingId: string }) {
   const [copied, setCopied] = useState(false);
   const [promptType, setPromptType] = useState<PromptType | null>(null);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [actionWorking, setActionWorking] = useState(false);
   const [actionError, setActionError] = useState('');
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
@@ -186,8 +188,14 @@ export function MeetingDetails({ meetingId }: { meetingId: string }) {
   const canComplete = role === 'AGENT' && meeting.status === 'IN_PROGRESS';
   const canReschedule = canManage && meeting.status === 'SCHEDULED';
   const canCancel = canManage && isActive;
+  const canOpenReport = meeting.status === 'COMPLETED';
+  const canEditReport = role === 'AGENT' && account?.id === meeting.agent_id;
 
   const company = meeting.company;
+  const recommendations =
+    company.ai_context?.scoring?.ready_for_offer_recommendation === true
+      ? company.ai_context.offer_recommendation?.recommendations ?? []
+      : [];
   const visitTypeLabel = visitTypeLabelFor(meeting.visit_type, t);
   const location = [company.delegation, company.governorate]
     .filter(Boolean)
@@ -455,7 +463,7 @@ export function MeetingDetails({ meetingId }: { meetingId: string }) {
               )}
             </div>
           </div>
-          {canStart || canComplete || canReschedule || canCancel ? (
+          {canStart || canComplete || canReschedule || canCancel || canOpenReport ? (
             <>
               <hr />
               {actionError ? (
@@ -464,6 +472,15 @@ export function MeetingDetails({ meetingId }: { meetingId: string }) {
                 </p>
               ) : null}
               <div className="meeting-detail-actions">
+                {canOpenReport ? (
+                  <button
+                    type="button"
+                    className="outline-button"
+                    onClick={() => setReportOpen(true)}
+                  >
+                    {messages.visitReportsPage.openReportButton}
+                  </button>
+                ) : null}
                 {canStart ? (
                   <button
                     type="button"
@@ -569,7 +586,7 @@ export function MeetingDetails({ meetingId }: { meetingId: string }) {
               ? t.aiNoScore
               : company.notes || t.aiNoSummary}
           </p>
-          {company.ai_score !== null ? (
+          {recommendations.length > 0 ? (
             <>
               <hr />
               <h3 className="ai-offer-title">
@@ -591,16 +608,26 @@ export function MeetingDetails({ meetingId }: { meetingId: string }) {
                 {t.aiOfferTitle}
               </h3>
               <ul className="ai-offer-list">
-                <li>{t.aiOfferItem1}</li>
-                <li>{t.aiOfferItem2}</li>
-                <li>{t.aiOfferItem3}</li>
-                <li>{t.aiOfferItem4}</li>
+                {recommendations.map((offer) => (
+                  <li key={offer.offer_id ?? offer.offer_name}>{offer.offer_name}</li>
+                ))}
               </ul>
+              {company.ai_context?.offer_recommendation?.warnings?.map((warning) => (
+                <p key={warning} className="ai-summary-text">{warning}</p>
+              ))}
             </>
           ) : null}
         </section>
       </div>
 
+      {reportOpen && canOpenReport ? (
+        <VisitReportDrawer
+          meetingId={meeting.id}
+          companyName={company.name}
+          canEdit={canEditReport}
+          onClose={() => setReportOpen(false)}
+        />
+      ) : null}
       {promptType ? (
         <PromptDialog
           type={promptType}

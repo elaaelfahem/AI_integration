@@ -4,15 +4,20 @@ services:
       context: ../../services/website-collector
     container_name: b2b-website-collector
     restart: unless-stopped
+    # The host resolver intermittently times out; override for this service only.
+    dns:
+      - ${B2B_DNS_SERVER:-1.1.1.1}
     environment:
       PORT: "8082"
       MAX_PAGES: "5"
-      MAX_PAGE_BYTES: "1000000"
+      MAX_PAGE_BYTES: "3000000"
       REQUEST_TIMEOUT_MS: "15000"
     ports:
       - "127.0.0.1:8084:8082"
     networks:
-      - flowise_network
+      flowise_network: {}
+      egress_network:
+        gw_priority: 1
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -25,3 +30,6 @@ networks:
   flowise_network:
     external: true
     name: docker_default
+  egress_network:
+    external: true
+    name: tp4_n8n_local

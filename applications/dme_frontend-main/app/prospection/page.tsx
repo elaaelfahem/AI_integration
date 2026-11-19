@@ -25,6 +25,18 @@ import type {
 type ProspectionCopy = Messages['prospectionPage'];
 type PotentialLevel = 'veryHigh' | 'high' | 'medium';
 
+function qualificationLabel(status: string | undefined, fr: boolean) {
+  const labels: Record<string, [string, string]> = {
+    VERIFIED_FIT: ['Secteur et lieu confirmés par les sources', 'Sector and location supported by sources'],
+    WRONG_SECTOR: ['Hors secteur demandé', 'Outside requested sector'],
+    UNVERIFIED_SECTOR: ['Secteur à confirmer', 'Sector needs evidence'],
+    UNVERIFIED_LOCATION: ['Lieu demandé non confirmé', 'Target location not confirmed'],
+    NEEDS_REVIEW: ['À examiner', 'Needs review'],
+  };
+  return (labels[status ?? 'NEEDS_REVIEW'] ?? labels.NEEDS_REVIEW)[fr ? 0 : 1];
+}
+
+
 // Same thresholds as the backend (prospecting.constants.ts).
 function potentialLevel(score: number): PotentialLevel {
   if (score >= 75) return 'veryHigh';
@@ -137,6 +149,12 @@ export default function ProspectionPage() {
     return () => window.clearTimeout(timer);
   }, [loadProspection]);
 
+  useEffect(() => {
+    if (!historyItems.some(run => run.status === 'RUNNING')) return;
+    const timer = window.setInterval(() => void loadProspection(), 10000);
+    return () => window.clearInterval(timer);
+  }, [historyItems, loadProspection]);
+
   const filteredProspects = useMemo(() => {
     const value = query.trim().toLowerCase();
     return prospects.filter((prospect) => {
@@ -211,7 +229,9 @@ export default function ProspectionPage() {
     try {
       const result = await authApi.startProspecting(criteria);
       await loadProspection();
-      if (result.discoveredCount === 0) {
+      if (result.status === 'RUNNING') {
+        pushToast(locale === 'fr' ? 'Recherche lancée. Les résultats apparaîtront progressivement.' : 'Search started. Results will appear as they are found.');
+      } else if (result.discoveredCount === 0) {
         pushToast(locale === 'fr'
           ? 'Aucune entreprise trouvée. Essayez un autre secteur ou une autre région.'
           : 'No companies found. Try another sector or region.');
@@ -681,6 +701,7 @@ function ProspectionResults({
 }) {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const prospectToRemove = items.find((p) => p.id === removingId);
+  const { locale } = useI18n();
   return (
     <div className="prospection-results">
       <div className="users-toolbar prospection-toolbar-override">
@@ -804,6 +825,7 @@ function ProspectionResults({
                   <tr key={prospect.id} onClick={() => onSelect(prospect)}>
                     <td data-label={t.colCompany}>
                       <strong>{prospect.company}</strong>
+                      <small style={{display:'block',color:'#666'}}>{qualificationLabel(prospect.enrichment?.qualificationStatus, locale === 'fr')}</small>
                     </td>
                     <td data-label={t.colSector}>
                       {displayValue(t, prospect.sector)}
@@ -986,13 +1008,14 @@ function HistoryView({
                     fontWeight: 700,
                   }}
                 >
-                  {item.qualified_count}
+                  {item.qualified_count}{item.criteria?.targetCompanies ? ` / ${item.criteria.targetCompanies}` : ''}
                 </td>
                 <td data-label={t.colStatus}>
                   <span
-                    className={`prospection-status-pill status-${item.status === 'COMPLETED' ? 'done' : item.status === 'FAILED' ? 'failed' : 'pending'}`}
+                    className={`prospection-status-pill status-${item.status === 'COMPLETED' && item.criteria?.target_met !== false ? 'done' : item.status === 'FAILED' ? 'failed' : 'pending'}`}
                   >
-                    {t.runStatus[item.status]}
+                    {item.status === 'COMPLETED' && item.criteria?.target_met === false
+                      ? (locale === 'fr' ? 'Partiel' : 'Partial') : t.runStatus[item.status]}
                   </span>
                 </td>
                 <td data-label={t.colAction}>
@@ -1264,6 +1287,7 @@ function RunDetailsDialog({
   run: ProspectingRun;
   onClose: () => void;
 }) {
+  const { locale } = useI18n();
   return createPortal(
     <div
       className="prospection-overlay"
@@ -1299,7 +1323,7 @@ function RunDetailsDialog({
           </div>
           <div>
             <dt>{t.colStatus}</dt>
-            <dd>{t.runStatus[run.status]}</dd>
+            <dd>{run.criteria?.target_met === false ? 'Partiel / Partial' : t.runStatus[run.status]}</dd>
           </div>
         </dl>
         {run.failure_message ? (
@@ -1325,6 +1349,7 @@ function RunDetailsDialog({
                   <li key={company.id}>
                     <strong>{company.name}</strong>
                     {company.score === null ? '' : ` — ${company.score}/100`}
+                    {company.scoring?.qualification_status ? ` · ${qualificationLabel(company.scoring.qualification_status, locale === 'fr')}` : ''}
                     <span style={{ color: '#777' }}>
                       {[company.sector, company.governorate]
                         .filter(Boolean)
@@ -1562,6 +1587,8 @@ function ProspectDrawer({
   onClose: () => void;
   onShortlist: () => void;
 }) {
+  const { locale } = useI18n();
+  const fr = locale === 'fr';
   return (
     <aside
       className="prospection-drawer"
@@ -1623,6 +1650,80 @@ function ProspectDrawer({
         <p className="prospection-summary-text">
           {recommendationText(t, prospect.recommendation)}
         </p>
+      </div>
+
+      <div className="prospection-drawer-section">
+        <h3>{fr ? 'Données de l’entreprise' : 'Company details'}</h3>
+        <div className="prospection-enrichment">
+          <p><strong>{fr ? 'Qualification : ' : 'Qualification: '}</strong>{qualificationLabel(prospect.enrichment?.qualificationStatus, fr)} · {prospect.enrichment?.offerReady ? (fr ? 'Prêt pour une offre' : 'Offer-ready') : (fr ? 'Preuves à compléter — aucune offre automatique' : 'Evidence needed — no automatic offer')}</p>
+          {prospect.enrichment?.profileScope === 'brand' ? <p>{fr ? 'Coordonnées et effectif de l’enseigne : ils ne décrivent pas nécessairement cette agence.' : 'Brand-level contacts and employee range: these do not necessarily describe this branch.'}</p> : null}
+          <p><strong>{fr ? 'Site web' : 'Website'}:</strong>{' '}
+            {prospect.enrichment?.website ? <a href={prospect.enrichment.website} target="_blank" rel="noopener noreferrer">{prospect.enrichment.website}</a> : (fr ? 'non vérifié' : 'unverified')}
+          </p>
+          <p><strong>{fr ? 'Téléphone' : 'Phone'}:</strong>{' '}
+            {prospect.enrichment?.phones?.length ? prospect.enrichment.phones.join(', ') : (fr ? 'non trouvé' : 'not found')}
+          </p>
+          <p><strong>Email:</strong>{' '}
+            {prospect.enrichment?.emails?.length ? prospect.enrichment.emails.join(', ') : (fr ? 'non vérifié' : 'unverified')}
+          </p>
+          <p><strong>{fr ? 'Effectif' : 'Employee count'}:</strong>{' '}
+            {prospect.enrichment?.employeeCount ?? prospect.enrichment?.employeeRange ?? (fr ? 'non vérifié' : 'unverified')}
+            {prospect.enrichment?.employeeSizeSource ? <>{' '}(<a href={prospect.enrichment.employeeSizeSource} target="_blank" rel="noopener noreferrer">LinkedIn</a>)</> : null}
+          </p>
+          {prospect.enrichment?.contactEvidence?.length ? (
+            <div className="prospection-enrichment-sources">
+              <strong>{fr ? 'Sources des coordonnées' : 'Contact sources'}</strong>
+              <ul>{prospect.enrichment.contactEvidence.map((fact, index) => (
+                <li key={`${fact.field}-${fact.value}-${index}`}>
+                  {fact.field === 'phone' ? (fr ? 'Téléphone' : 'Phone') : 'Email'} {fact.value} —{' '}
+                  {fact.source_name === 'official_website' ? (fr ? 'site officiel' : 'official site')
+                    : fact.source_name === 'public_search_corroborated' ? (fr ? 'sources publiques recoupées' : 'corroborated public sources')
+                    : (fr ? 'source publique' : 'public source')}{' · '}
+                  <a href={fact.source_url} target="_blank" rel="noopener noreferrer">{fr ? 'voir la source' : 'view source'}</a>
+                </li>
+              ))}</ul>
+            </div>
+          ) : null}
+          {prospect.enrichment?.osmFacts?.length ? (
+            <div className="prospection-enrichment-sources">
+              <strong>{fr ? 'Données OpenStreetMap (déclarées par la communauté)' : 'OpenStreetMap data (community reported)'}</strong>
+              <ul>{prospect.enrichment.osmFacts.map((fact, index) => (
+                <li key={`${fact.field}-${fact.value}-${index}`}>
+                  {fact.field.replaceAll('_', ' ')}: {fact.value} —{' '}
+                  <a href={fact.source_url} target="_blank" rel="noopener noreferrer">OpenStreetMap</a>
+                </li>
+              ))}</ul>
+              <small>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a></small>
+            </div>
+          ) : null}
+          {prospect.enrichment?.evidence?.length ? <details>
+            <summary>{fr ? 'Faits et sources' : 'Facts and sources'}</summary>
+            <ul>{prospect.enrichment.evidence.map((fact, index) => <li key={index}>
+              <p>{fact.value}</p>
+              <a href={fact.source_url} target="_blank" rel="noopener noreferrer">{fr ? 'Source' : 'Source'}</a>
+              <small> · {fact.retrieved_at} · {fact.uncertainty}</small>
+            </li>)}</ul>
+          </details> : null}
+          {prospect.enrichment?.locationLeads?.length ? <details>
+            <summary>{fr ? 'Pistes de localisation — non vérifiées' : 'Location leads — unverified'}</summary>
+            <ul>{prospect.enrichment.locationLeads.map((lead, index) => <li key={index}>
+              {lead.reported_address || lead.reported_city} —{' '}
+              <a href={lead.source_url} target="_blank" rel="noopener noreferrer">OpenStreetMap</a>
+              <small> · {lead.published_at ? `${fr ? 'modifié le' : 'last edited'} ${lead.published_at} · ` : ''}{fr ? 'consulté le' : 'retrieved'} {lead.retrieved_at}</small>
+            </li>)}</ul>
+            <small>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · ODbL</small>
+          </details> : null}
+          {prospect.enrichment?.publicMentions?.length ? <details>
+            <summary>{fr ? 'Profils, emplois et articles — mentions non vérifiées' : 'Profiles, jobs and articles — unverified mentions'}</summary>
+            <ul>{prospect.enrichment.publicMentions.map((mention, index) => <li key={index}>
+              <a href={mention.source_url} target="_blank" rel="noopener noreferrer">{mention.title}</a>
+              <small> · {mention.source_category?.replaceAll('_', ' ') || 'MENTION'} · {mention.published_at || (fr ? 'date de publication inconnue' : 'publication date unknown')} · {fr ? 'consulté le' : 'retrieved'} {mention.retrieved_at} · {mention.uncertainty}</small>
+            </li>)}</ul>
+          </details> : null}
+          {prospect.enrichment?.websiteEvidence ? (
+            <p><a href={prospect.enrichment.websiteEvidence} target="_blank" rel="noopener noreferrer">{fr ? 'Source du site web' : 'Website source'}</a></p>
+          ) : null}
+        </div>
       </div>
 
       <button

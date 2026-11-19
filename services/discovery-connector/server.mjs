@@ -1,4 +1,8 @@
+import { searchSerper } from './serper.mjs';
 import { qualifyDiscovery } from './qualify.mjs';
+import { researchCompany } from './research.mjs';
+import { lookupOsmLocation } from './osm-location.mjs';
+import { planSuppliedCampaign, suppliedRecords } from './supplied.mjs';
 import http from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -19,18 +23,17 @@ function readEnvFile(path) {
 
 const secretEnv = readEnvFile('/run/secrets/discovery.env');
 
+const serperApiKey = process.env.ALLOW_PAID_SEARCH === 'true' ? (process.env.SERPER_API_KEY ?? secretEnv.SERPER_API_KEY ?? '') : '';
+
 const port = Number(process.env.PORT ?? 8080);
 const b2bAllUrl = process.env.B2B_ALL_URL
   ?? 'https://b2b.tn/api/95144485658589965854226547145896325655854852365856665545855/entreprises/getEntreprisesAll.php?nb=-1';
-const googleApiKey = process.env.GOOGLE_MAPS_API_KEY ?? secretEnv.GOOGLE_MAPS_API_KEY ?? '';
+const googleApiKey = process.env.ALLOW_PAID_SEARCH === 'true' ? (process.env.GOOGLE_MAPS_API_KEY ?? secretEnv.GOOGLE_MAPS_API_KEY ?? '') : '';
 const googleUrl = 'https://places.googleapis.com/v1/places:searchText';
 const searxngUrl = (process.env.SEARXNG_URL ?? 'http://searxng:8080').replace(/\/$/, '');
 const mapsScraperUrl = (process.env.GOOGLE_MAPS_SCRAPER_URL ?? 'http://google-maps-scraper:8080').replace(/\/$/, '');
-const googleFieldMask = [
-  'places.id', 'places.displayName', 'places.formattedAddress',
-  'places.nationalPhoneNumber', 'places.websiteUri', 'places.rating',
-  'places.userRatingCount', 'places.primaryType', 'places.location',
-].join(',');
+// Only place IDs may enter the persistent campaign pipeline.
+const googleFieldMask = 'places.id';
 
 let b2bCache = { expiresAt: 0, records: [] };
 
@@ -373,20 +376,41 @@ async function discoverGoogleMaps(query, limit, timeoutMs = 45_000) {
   const candidates = (body.places ?? []).map((place) => envelope(
     query,
     `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.id ?? '')}`,
-    place,
+    { id: place.id, identity_status: 'UNRESOLVED_PLACE_ID' },
     response.status,
   ));
-  return { candidates };
+  return { candidates, warning: 'Places returns IDs only; independent company identity is required before research' };
+}
+
+
+// Resolve a missing website from Places without attributing it to the directory.
+// Matching branches that report the same domain are stronger than one result.
+async function collectResearch(input) {
+  const base = process.env.WEBSITE_COLLECTOR_URL || 'http://website-collector:8082';
+  const result = await fetch(`${base}/v1/collect`, {
+    method:'POST', headers:{'content-type':'application/json'},
+    body:JSON.stringify({campaign_id:input.campaign_id,company_id:input.company.company_id,canonical_name:input.company.canonical_name,website:input.website,maximum_pages:input.maximum_pages}),
+    signal:AbortSignal.timeout(35_000),
+  });
+  if (!result.ok) throw new Error('Collector unavailable');
+  return result.json();
+}
+async function resolveCompanyWebsite(input) {
+  if (typeof input?.name !== 'string' || !input.name.trim() || input.name.length > 255) throw new Error('name must be 1-255 characters');
+  const result = await researchCompany({campaign_id:input.campaign_id || 'website-resolution',company:{company_id:'website-resolution',canonical_name:input.name,governorate:input.location}}, {search:discoverWebSearch,collect:collectResearch});
+  const resolution = result.company.website_resolution;
+  return {...resolution,status:resolution.website ? 'RESOLVED' : 'REVIEW_REQUIRED'};
 }
 
 const webCache = new Map();
 const webCacheMs = Math.max(0, Number(process.env.WEB_CACHE_TTL_MS ?? 900000));
 let webRetryAt = 0;
 async function discoverWebSearch(query, limit) {
-  const key = JSON.stringify([query.query, query.language || 'auto', limit]);
+  const key = JSON.stringify([query.query, query.language || 'auto', limit, query.search_page ?? 1]);
   const cached = webCache.get(key);
   const usable = cached && Date.now() - cached.at < webCacheMs;
   const cachedResult = () => ({candidates: cached.candidates.filter(c => !isExcluded(query.campaign_id, {url:c.source_url, matchDomain:true})).map(c => ({...c, campaign_id:query.campaign_id,query_id:query.query_id})), warnings:['Live web search unavailable; using previously retrieved results with their original timestamps.']});
+  if (usable) return {...cachedResult(), warnings:['Cached search results; original retrieval timestamps preserved.']};
   if (Date.now() < webRetryAt) {
     if (usable) return cachedResult();
     throw new Error('Search providers are cooling down after a failure; retry in one minute');
@@ -405,21 +429,37 @@ async function discoverWebSearch(query, limit) {
   }
 }
 async function fetchWebSearch(query, limit) {
+  let primaryError;
+  if (serperApiKey) {
+    try {
+      const results = await searchSerper({query:query.query, language:query.language, limit, page:query.search_page ?? 1, apiKey:serperApiKey});
+      return {candidates: results.filter(r => !isExcluded(query.campaign_id, {url:r.url,matchDomain:true})).map(r => envelope(query,r.url,r,200)),warnings:[]};
+    } catch (error) {
+      primaryError = error;
+    }
+  }
   const requestUrl = new URL(`${searxngUrl}/search`);
   requestUrl.searchParams.set('q', query.query);
   requestUrl.searchParams.set('format', 'json');
   requestUrl.searchParams.set('language', query.language || 'auto');
   requestUrl.searchParams.set('categories', 'general');
+  requestUrl.searchParams.set('pageno', String(query.search_page ?? 1));
 
-  const response = await fetch(requestUrl, { signal: AbortSignal.timeout(45_000) });
+  let response;
+  try {
+    response = await fetch(requestUrl, { signal: AbortSignal.timeout(45_000) });
+  } catch (error) {
+    if (primaryError) throw new Error(`${primaryError.message}; SearXNG fallback unavailable: ${error.message}`);
+    throw error;
+  }
   if (!response.ok) throw new Error(`SearXNG returned HTTP ${response.status}`);
   const body = await response.json();
   if (!body || !Array.isArray(body.results)) {
     throw new Error('SearXNG returned an invalid results payload');
   }
   const unavailable = Array.isArray(body.unresponsive_engines) ? body.unresponsive_engines : [];
-  const warnings = unavailable.map((entry) =>
-    `SearXNG engine unavailable: ${Array.isArray(entry) ? entry.join(': ') : String(entry)}`);
+  const warnings = [...(primaryError ? [`Primary web search unavailable: ${primaryError.message}; using SearXNG results.`] : []), ...unavailable.map((entry) =>
+    `SearXNG engine unavailable: ${Array.isArray(entry) ? entry.join(': ') : String(entry)}`)];
   if (!body.results.length && unavailable.length) {
     throw new Error(`SearXNG returned no results with engine failures: ${warnings.join('; ')}`);
   }
@@ -457,7 +497,12 @@ async function discover(query) {
   const warnings = [];
   let status = 'COMPLETED';
 
-  if (query.source_id === 'b2b_tn') {
+  if (query.source_id === 'user_supplied') {
+    candidates = suppliedRecords(query).slice(0, limit).map(r => envelope(query,r.sourceUrl,r.payload));
+  } else if (['b2b_tn', 'google_maps_scraper', 'openstreetmap'].includes(query.source_id)) {
+    status = 'SKIPPED';
+    warnings.push(`${query.source_id} disabled in V1 pending provider review`);
+  } else if (query.source_id === 'b2b_tn') {
     try {
       candidates = await discoverB2b(query, limit);
     } catch (error) {
@@ -470,7 +515,7 @@ async function discover(query) {
       candidates = result.candidates;
       if (result.warning) {
         warnings.push(result.warning);
-        status = 'SKIPPED';
+        status = candidates.length ? 'COMPLETED' : 'SKIPPED';
       }
     } catch (error) {
       status = 'SKIPPED';
@@ -514,6 +559,7 @@ const server = http.createServer(async (request, response) => {
       return jsonResponse(response, 200, {
         status: 'ok',
         google_maps_configured: Boolean(googleApiKey),
+        web_search_provider: serperApiKey ? 'serper' : 'searxng',
         searxng_url: searxngUrl,
         google_maps_scraper_url: mapsScraperUrl,
         b2b_cache_records: b2bCache.records.length,
@@ -544,11 +590,20 @@ const server = http.createServer(async (request, response) => {
         },
       }));
     }
+    if (request.method === 'POST' && request.url === '/v1/plan-supplied') {
+      return jsonResponse(response, 200, planSuppliedCampaign(await readJson(request)));
+    }
+    if (request.method === 'POST' && request.url === '/v1/research-company') {
+      return jsonResponse(response, 200, await researchCompany(await readJson(request), {search:discoverWebSearch,collect:collectResearch,lookupLocation:lookupOsmLocation}));
+    }
     if (request.method === 'POST' && request.url === '/v1/exclusions') {
       return jsonResponse(response, 200, registerExclusions(await readJson(request)));
     }
     if (request.method === 'POST' && request.url === '/v1/discover') {
       return jsonResponse(response, 200, await discover(await readJson(request)));
+    }
+    if (request.method === 'POST' && request.url === '/v1/resolve-company-website') {
+      return jsonResponse(response, 200, await resolveCompanyWebsite(await readJson(request)));
     }
     return jsonResponse(response, 404, { error: 'Not found' });
   } catch (error) {
@@ -558,5 +613,5 @@ const server = http.createServer(async (request, response) => {
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`Discovery connector listening on port ${port}`);
-  if (b2bCacheFile) loadB2bRecords().catch((error) => console.warn(`B2B.tn warm-up failed: ${error.message}`));
+  if (false && b2bCacheFile) loadB2bRecords().catch((error) => console.warn(`B2B.tn warm-up failed: ${error.message}`));
 });

@@ -1,4 +1,8 @@
-use_default_settings: true
+use_default_settings:
+  engines:
+    keep_only:
+      - duckduckgo
+      - mwmbl
 
 general:
   instance_name: "B2B Search"
@@ -23,12 +27,10 @@ outgoing:
   request_timeout: 8.0
   max_request_timeout: 15.0
 
-# Company discovery needs web results, not encyclopedia entries. Mojeek adds an
-# independent index for when the larger engines rate-limit or show a CAPTCHA.
+# Restrict this local demo to the engines verified reachable on this network.
+# Expand only after probing additional engines; do not bypass upstream blocks.
 engines:
-  - name: mojeek
+  - name: duckduckgo
     disabled: false
-  - name: wikipedia
-    disabled: true
-  - name: wikidata
-    disabled: true
+  - name: mwmbl
+    disabled: false

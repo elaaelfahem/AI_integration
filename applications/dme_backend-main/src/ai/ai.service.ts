@@ -19,6 +19,8 @@ export type AiCompany = {
     total_score: number;
     category: string;
     ready_for_offer_recommendation: boolean;
+    reasons?: string[];
+    missing_data?: string[];
   };
   offer_recommendation?: {
     recommendations?: { offer_name: string }[];
@@ -72,6 +74,58 @@ export class AiService {
     }
   }
 
+  async resolveCompanyWebsite(name: string, location?: string | null) {
+    return this.call<{
+      status: string;
+      website: string | null;
+      method?: string;
+      evidence: Array<{
+        source_name: string;
+        source_url: string;
+        retrieved_at: string;
+        reported_name: string;
+        reported_website: string;
+        checksum: string;
+      }>;
+    }>('AI_DISCOVERY_URL', '/v1/resolve-company-website', { name, location }, 15000);
+  }
+
+  async searchPublicEvidence(query: string) {
+    return this.call<{
+      candidates: Array<{
+        source_url: string;
+        retrieved_at: string;
+        checksum: string;
+        payload: { title?: string; content?: string; url?: string };
+      }>;
+    }>('AI_DISCOVERY_URL', '/v1/discover', {
+      campaign_id: randomUUID(), query_id: randomUUID(),
+      source_id: 'web_search', source_type: 'web_search',
+      query, language: 'fr', limit_per_query: 12,
+    }, 10000);
+  }
+
+  async collectCompanyWebsite(name: string, website: string) {
+    return this.call<{
+      status: string;
+      warnings: string[];
+      pages: Array<{
+        source_url: string;
+        retrieved_at: string;
+        checksum: string;
+        http_status: number;
+        text: string;
+        evidence_links: Array<{ type: string; value: string }>;
+      }>;
+    }>('AI_WEBSITE_COLLECTOR_URL', '/v1/collect', {
+      campaign_id: 'application-contact-enrichment',
+      company_id: name,
+      canonical_name: name,
+      website,
+      maximum_pages: 3,
+    }, 18000);
+  }
+
   async campaign(
     id: string,
     criteria: {
@@ -80,12 +134,14 @@ export class AiService {
       employee_range: string | null;
       query: string | null;
     },
-    sources = ['b2b_tn', 'web_search'],
+    sources = ['web_search'],
     known: { source_urls: string[]; names: string[]; domains: string[] } = {
       source_urls: [],
       names: [],
       domains: [],
     },
+    suppliedCompanies?: Array<{name:string;website?:string;location?:string}>,
+    searchPage = 1,
   ) {
     // Tell discovery which companies the caller already holds so this search
     // returns new ones. Without it the search still runs and the caller drops
@@ -107,9 +163,10 @@ export class AiService {
       {
         campaign_id: id,
         campaign_name: `Application campaign ${id}`,
+        ...(suppliedCompanies ? {supplied_companies:suppliedCompanies} : {}),
         countries: ['TN'],
         sectors: [sector || criteria.query || 'entreprises'],
-        governorates: criteria.governorate ? [criteria.governorate] : [],
+        governorates: [criteria.governorate || 'Tunisie'],
         cities: [],
         keywords: criteria.query ? [criteria.query] : [],
         excluded_keywords: [],
@@ -119,6 +176,7 @@ export class AiService {
         },
         maximum_candidates: 10,
         maximum_enrichment_companies: 10,
+        search_page: searchPage > 10 ? searchPage - 10 : searchPage,
         enable_semantic_extraction: false,
         enable_semantic_offer_explanation: false,
         enabled_sources: sources.map((source_id) => ({
@@ -126,7 +184,7 @@ export class AiService {
           source_type:
             source_id === 'b2b_tn'
               ? 'directory'
-              : source_id === 'google_maps'
+              : source_id === 'google_maps' || source_id === 'openstreetmap'
                 ? 'maps'
                 : 'web_search',
           capabilities: [
@@ -136,7 +194,7 @@ export class AiService {
             'company_lookup',
             'pagination',
           ],
-          supported_languages: ['fr'],
+          supported_languages: ['fr', 'en'],
         })),
         official_validation: {
           enabled: true,
@@ -145,7 +203,7 @@ export class AiService {
           failure_policy: 'REVIEW',
           enrich: true,
         },
-        language_preferences: ['fr'],
+        language_preferences: [searchPage > 10 ? 'en' : 'fr'],
         limits: {
           maximum_queries: sources.length,
           maximum_queries_per_source: 1,

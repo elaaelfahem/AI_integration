@@ -3,6 +3,8 @@ services:
     image: searxng/searxng@sha256:a07a5cd2da2c63d66e559f9e4d3a3db106cfc6c32fb0ac70abe91cc28bcd7350
     container_name: b2b-searxng
     restart: unless-stopped
+    dns:
+      - ${B2B_DNS_SERVER:-1.1.1.1}
     env_file:
       - .env
     environment:
@@ -14,7 +16,9 @@ services:
     ports:
       - "127.0.0.1:8088:8080"
     networks:
-      - flowise_network
+      flowise_network: {}
+      egress_network:
+        gw_priority: 1
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -24,3 +28,6 @@ networks:
   flowise_network:
     external: true
     name: docker_default
+  egress_network:
+    external: true
+    name: tp4_n8n_local

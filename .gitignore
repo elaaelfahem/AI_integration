@@ -35,3 +35,5 @@ dist/
 playwright-report/
 test-results/
 deployment/application/.local-access.md
+# Private deployment backups, credentials, live evidence, and temporary scripts
+work/

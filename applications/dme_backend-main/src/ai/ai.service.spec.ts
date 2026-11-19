@@ -33,9 +33,11 @@ describe('AI transport', () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
     expect(body.employee_range).toEqual({ minimum: 50, maximum: 250 });
     expect(body.maximum_candidates).toBe(10);
+    expect(body.maximum_enrichment_companies).toBe(10);
+    expect(body.search_page).toBe(1);
     expect(
       body.enabled_sources.map((s: { source_id: string }) => s.source_id),
-    ).toEqual(['b2b_tn', 'web_search']);
+    ).toEqual(['web_search']);
   });
   it.each([
     {

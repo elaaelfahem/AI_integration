@@ -61,6 +61,24 @@ export class ProspectingController {
     return this.prospecting.history(request.user.sub);
   }
 
+  @Get('runs/:runId')
+  @ApiOperation({ summary: 'Read the caller’s persisted run status and stage' })
+  runStatus(@Req() request: { user: AccessTokenPayload }, @Param('runId', ParseUUIDPipe) runId: string) {
+    return this.prospecting.runStatus(request.user.sub, runId);
+  }
+
+  @Get(':companyId/report')
+  @ApiOperation({ summary: 'Read an evidence-based company report in the caller’s scope' })
+  report(@Req() request: { user: AccessTokenPayload }, @Param('companyId', ParseUUIDPipe) companyId: string) {
+    return this.prospecting.report(request.user.sub, request.user.role, companyId);
+  }
+
+  @Get(':companyId/dossier')
+  @ApiOperation({ summary: 'Read evidence, uncertainty, scoring and offers in the caller’s company scope' })
+  dossier(@Req() request: { user: AccessTokenPayload }, @Param('companyId', ParseUUIDPipe) companyId: string) {
+    return this.prospecting.dossier(request.user.sub, request.user.role, companyId);
+  }
+
   @Post('runs')
   @Roles(APP_ROLES.SUPERADMIN, APP_ROLES.MANAGER)
   @ApiOperation({

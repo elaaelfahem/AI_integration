@@ -6,6 +6,7 @@ const requiredStrings = ['campaign_id', 'query_id', 'source_id', 'source_type', 
 for (const field of requiredStrings) if (typeof value[field] !== 'string' || value[field].trim() === '') throw new Error(`Invalid composed query: ${field} must be a non-empty string`);
 for (const field of ['campaign_id', 'query_id', 'source_id', 'source_type', 'language', 'sector', 'location']) if (value[field] !== expected[field]) throw new Error(`Invalid composed query: ${field} changed by the model`);
 if (!Number.isInteger(value.priority) || value.priority < 1 || value.priority > 5) throw new Error('Invalid composed query: priority must be an integer from 1 to 5');
+value.search_page = expected.search_page ?? 1;
 
 const frenchSector = { software: 'logiciels', 'IT services': 'services informatiques' };
 const arabicSector = { software: 'البرمجيات', 'IT services': 'خدمات تكنولوجيا المعلومات' };
@@ -19,7 +20,8 @@ const hasWebOperator = /(^|\s)(site:|inurl:|intitle:)/i.test(value.query);
 const obviousEnglishInFrench = value.language === 'fr' && /\b(company|companies|company discovery|find companies|software company|software|IT services)\b/i.test(generatedText);
 const hasArabicCharacters = /[\u0600-\u06FF]/.test(generatedText);
 const wrongLanguage = (value.language === 'fr' && obviousEnglishInFrench) || (value.language === 'ar' && !hasArabicCharacters);
-const unsuitableForSource = value.source_type !== 'web_search' && hasWebOperator;
+// Discovery needs broad company results; model-generated site restrictions can silently return zero.
+const unsuitableForSource = hasWebOperator;
 
 if (wrongLanguage || unsuitableForSource) {
   if (value.language === 'fr') {

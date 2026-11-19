@@ -18,8 +18,6 @@ return [{json: {
  excluded_keywords: [], employee_range: {minimum: null, maximum: null}, maximum_candidates: maximumCandidates,
  enabled_sources: [
   {source_id:'google_maps',source_type:'maps',capabilities:['keyword','sector','location','pagination'],supported_languages:['fr','en']},
-  {source_id:'b2b_tn',source_type:'directory',capabilities:['sector','location','company_lookup','pagination'],supported_languages:['fr','en']},
-  {source_id:'web_search',source_type:'web_search',capabilities:['keyword','sector','location','pagination'],supported_languages:['fr','en','ar']},
   {source_id:'rne_kyc',source_type:'registry',capabilities:['company_lookup'],supported_languages:['fr']}
  ],
  official_validation:{enabled:true,source_id:'rne_kyc',mode:'WHEN_IDENTIFIER_AVAILABLE',failure_policy:'REVIEW',enrich:true},
